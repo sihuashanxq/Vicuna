@@ -104,5 +104,28 @@ namespace Vicuna.Storage.Data.Extensions
 
             return Unsafe.As<byte, double>(ref @this[index]);
         }
+
+        public static Span<byte> GetString(this Span<byte> @this, int index, out int size)
+        {
+            if (index < 0 || index > @this.Length)
+            {
+                throw new ArgumentOutOfRangeException(nameof(index));
+            }
+
+            switch ((DataSize)(@this[index] & DataTypeConstants.DataSizeMask))
+            {
+                case DataSize.Size_1:
+                    size = @this[index + sizeof(byte)];
+                    return @this.Slice(index + sizeof(byte), size);
+                case DataSize.Size_2:
+                    size = BitConverter.ToUInt16(@this.Slice(index, sizeof(ushort)));
+                    return @this.Slice(index + sizeof(ushort), size);
+                case DataSize.Size_4:
+                    size = BitConverter.ToInt32(@this.Slice(index, sizeof(int)));
+                    return @this.Slice(index + sizeof(int), size);
+                default:
+                    throw new InvalidOperationException();
+            }
+        }
     }
 }
