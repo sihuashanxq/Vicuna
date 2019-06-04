@@ -64,7 +64,7 @@ namespace Vicuna.Storage.Data
                         i += sizeof(double);
                         break;
                     case DataType.Boolean:
-                        v = ComparePrimitive(s1.ToBoolean(i), s2, ref n, t2);
+                        v = ComparePrimitive(s1.ToBoolean(i) ? 1 : 0, s2, ref n, t2);
                         i += sizeof(bool);
                         break;
                     case DataType.DateTime:
@@ -90,6 +90,194 @@ namespace Vicuna.Storage.Data
             }
 
             return s1.Length - s2.Length;
+        }
+
+        /// <summary>
+        /// </summary>
+        /// <param name="src"></param>
+        /// <param name="dest"></param>
+        /// <param name="index"></param>
+        /// <param name="type"></param>
+        /// <returns></returns>
+        private static int CompareString(Span<byte> src, Span<byte> dest, StringCompareMode mode = StringCompareMode.None)
+        {
+            fixed (byte* p1 = src, p2 = dest)
+            {
+                return Compare(p1, p2, src.Length, dest.Length, mode);
+            }
+        }
+
+        private static int ComparePrimitive(long comparable, Span<byte> dest, ref int index, DataType type)
+        {
+            var i = index;
+
+            switch (type)
+            {
+                case DataType.Char:
+                    index += sizeof(char);
+                    return comparable.CompareTo(dest.ToChar(i));
+                case DataType.Byte:
+                    index += sizeof(byte);
+                    return comparable.CompareTo(dest[i]);
+                case DataType.Int16:
+                    index += sizeof(short);
+                    return comparable.CompareTo(dest.ToInt16(i));
+                case DataType.Int32:
+                    index += sizeof(int);
+                    return comparable.CompareTo(dest.ToInt32(i));
+                case DataType.Int64:
+                    index += sizeof(long);
+                    return comparable.CompareTo(dest.ToInt64(i));
+                case DataType.UInt16:
+                    index += sizeof(ushort);
+                    return comparable.CompareTo(dest.ToUInt16(i));
+                case DataType.UInt32:
+                    index += sizeof(uint);
+                    return comparable.CompareTo(dest.ToUInt32(i));
+                case DataType.UInt64:
+                    index += sizeof(ulong);
+                    return Compare(comparable, dest.ToUInt64(i));
+                case DataType.Single:
+                    index += sizeof(float);
+                    return Compare(comparable, dest.ToSingle(i));
+                case DataType.Double:
+                    index += sizeof(double);
+                    return Compare(comparable, dest.ToDouble(i));
+                case DataType.Boolean:
+                    index += sizeof(bool);
+                    return comparable.CompareTo(dest.ToBoolean(i) ? 1 : 0);
+                default:
+                    throw new InvalidOperationException($"data type:{type} is not a primitive type!");
+            }
+        }
+
+        private static int ComparePrimitive(ulong comparable, Span<byte> dest, ref int index, DataType type)
+        {
+            var i = index;
+
+            switch (type)
+            {
+                case DataType.Char:
+                    index += sizeof(char);
+                    return comparable.CompareTo(dest.ToChar(i));
+                case DataType.Byte:
+                    index += sizeof(byte);
+                    return comparable.CompareTo(dest[i]);
+                case DataType.Int16:
+                    index += sizeof(short);
+                    return -Compare(dest.ToInt16(i), comparable);
+                case DataType.Int32:
+                    index += sizeof(int);
+                    return -Compare(dest.ToInt32(i), comparable);
+                case DataType.Int64:
+                    index += sizeof(long);
+                    return -Compare(dest.ToInt64(i), comparable);
+                case DataType.UInt16:
+                    index += sizeof(ushort);
+                    return comparable.CompareTo(dest.ToUInt16(i));
+                case DataType.UInt32:
+                    index += sizeof(uint);
+                    return comparable.CompareTo(dest.ToUInt32(i));
+                case DataType.UInt64:
+                    index += sizeof(ulong);
+                    return comparable.CompareTo(dest.ToUInt64(i));
+                case DataType.Single:
+                    index += sizeof(float);
+                    return Compare(comparable, dest.ToSingle(i));
+                case DataType.Double:
+                    index += sizeof(double);
+                    return Compare(comparable, dest.ToDouble(i));
+                case DataType.Boolean:
+                    index += sizeof(bool);
+                    return comparable.CompareTo(dest.ToBoolean(i) ? 1u : 0u);
+                default:
+                    throw new InvalidOperationException($"data type:{type} is not a primitive type!");
+            }
+        }
+
+        private static int ComparePrimitive(double comparable, Span<byte> dest, ref int index, DataType type)
+        {
+            var i = index;
+
+            switch (type)
+            {
+                case DataType.Char:
+                    index += sizeof(char);
+                    return comparable.CompareTo(dest.ToChar(i));
+                case DataType.Byte:
+                    index += sizeof(byte);
+                    return comparable.CompareTo(dest[i]);
+                case DataType.Int16:
+                    index += sizeof(short);
+                    return comparable.CompareTo(dest.ToInt16(i));
+                case DataType.Int32:
+                    index += sizeof(int);
+                    return comparable.CompareTo(dest.ToInt32(i));
+                case DataType.Int64:
+                    index += sizeof(long);
+                    return comparable.CompareTo(dest.ToInt64(i));
+                case DataType.UInt16:
+                    index += sizeof(ushort);
+                    return comparable.CompareTo(dest.ToUInt16(i));
+                case DataType.UInt32:
+                    index += sizeof(uint);
+                    return comparable.CompareTo(dest.ToUInt32(i));
+                case DataType.UInt64:
+                    index += sizeof(ulong);
+                    return comparable.CompareTo(dest.ToUInt64(i));
+                case DataType.Single:
+                    index += sizeof(float);
+                    return comparable.CompareTo(dest.ToSingle(i));
+                case DataType.Double:
+                    index += sizeof(double);
+                    return comparable.CompareTo(dest.ToDouble(i));
+                case DataType.Boolean:
+                    index += sizeof(bool);
+                    return comparable.CompareTo(dest.ToBoolean(i) ? 1 : 0);
+                default:
+                    throw new InvalidOperationException($"data type:{type} is not a primitive type!");
+            }
+        }
+
+        [MethodImpl(MethodImplOptions.AggressiveInlining)]
+        public static int Compare(long l1, ulong l2)
+        {
+            if (l1 < 0 || l2 > long.MaxValue)
+            {
+                return -1;
+            }
+
+            return l1.CompareTo((long)l2);
+        }
+
+        [MethodImpl(MethodImplOptions.AggressiveInlining)]
+        public static int Compare(long l1, double l2)
+        {
+            if (l1 == l2)
+            {
+                return 0;
+            }
+            else if (l1 > l2)
+            {
+                return 1;
+            }
+
+            return -1;
+        }
+
+        [MethodImpl(MethodImplOptions.AggressiveInlining)]
+        public static int Compare(ulong l1, double l2)
+        {
+            if (l1 == l2)
+            {
+                return 0;
+            }
+            else if (l1 > l2)
+            {
+                return 1;
+            }
+
+            return -1;
         }
 
         [MethodImpl(MethodImplOptions.AggressiveInlining)]
@@ -169,71 +357,10 @@ namespace Vicuna.Storage.Data
             return len1 - len2;
         }
 
-        /// <summary>
-        /// </summary>
-        /// <param name="src"></param>
-        /// <param name="dest"></param>
-        /// <param name="index"></param>
-        /// <param name="type"></param>
-        /// <returns></returns>
         [MethodImpl(MethodImplOptions.AggressiveInlining)]
-        private static int CompareString(Span<byte> src, Span<byte> dest, StringCompareMode mode = StringCompareMode.None)
+        public static byte GetASCIILowercaseChar(byte ch)
         {
-            fixed (byte* p1 = src, p2 = dest)
-            {
-                return Compare(p1, p2, src.Length, dest.Length, mode);
-            }
-        }
-
-        [MethodImpl(MethodImplOptions.AggressiveInlining)]
-        private static int ComparePrimitive(IComparable comparable, Span<byte> dest, ref int index, DataType type)
-        {
-            var i = index;
-
-            switch (type)
-            {
-                case DataType.Char:
-                    index += sizeof(char);
-                    return comparable.CompareTo(dest.ToChar(i));
-                case DataType.Byte:
-                    index += sizeof(byte);
-                    return comparable.CompareTo((char)dest[i]);
-                case DataType.Int16:
-                    index += sizeof(short);
-                    return comparable.CompareTo(dest.ToInt16(i));
-                case DataType.Int32:
-                    index += sizeof(int);
-                    return comparable.CompareTo(dest.ToInt32(i));
-                case DataType.Int64:
-                    index += sizeof(long);
-                    return comparable.CompareTo(dest.ToInt64(i));
-                case DataType.UInt16:
-                    index += sizeof(ushort);
-                    return comparable.CompareTo(dest.ToUInt16(i));
-                case DataType.UInt32:
-                    index += sizeof(uint);
-                    return comparable.CompareTo(dest.ToUInt32(i));
-                case DataType.UInt64:
-                    index += sizeof(ulong);
-                    return comparable.CompareTo(dest.ToUInt64(i));
-                case DataType.Single:
-                    index += sizeof(float);
-                    return comparable.CompareTo(dest.ToSingle(i));
-                case DataType.Double:
-                    index += sizeof(double);
-                    return comparable.CompareTo(dest.ToDouble(i));
-                case DataType.Boolean:
-                    index += sizeof(bool);
-                    return comparable.CompareTo(dest.ToBoolean(i));
-                default:
-                    throw new InvalidOperationException($"data type:{type} is not a primitive type!");
-            }
-        }
-
-        [MethodImpl(MethodImplOptions.AggressiveInlining)]
-        private static byte GetASCIILowercaseChar(byte ch)
-        {
-            if (ch >= 56 && ch <= 90)
+            if (ch >= 65 && ch <= 90)
             {
                 return (byte)(ch + 32);
             }

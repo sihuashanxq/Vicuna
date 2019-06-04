@@ -16,7 +16,7 @@
 
   <ItemGroup>
     <Folder Include="Data\Tables\" />
-    <Folder Include="Buffers\" />
+    <Folder Include="Stores\" />
   </ItemGroup>
 
   <ItemGroup>
