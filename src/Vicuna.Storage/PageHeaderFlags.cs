@@ -1,4 +1,4 @@
-﻿namespace Vicuna.Storage.Paging
+﻿namespace Vicuna.Storage
 {
     public enum PageHeaderFlags : byte
     {
@@ -6,6 +6,8 @@
 
         Journal,
 
-        Overflow
+        Overflow,
+
+        StoreRoot
     }
 }

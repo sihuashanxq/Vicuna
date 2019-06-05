@@ -1,7 +1,7 @@
 ﻿using System;
 using System.Runtime.CompilerServices;
 
-namespace Vicuna.Storage.Paging
+namespace Vicuna.Storage
 {
     public class Page
     {

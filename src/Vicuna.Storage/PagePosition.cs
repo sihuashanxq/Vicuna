@@ -1,6 +1,6 @@
 ﻿using System.Runtime.InteropServices;
 
-namespace Vicuna.Storage.Paging
+namespace Vicuna.Storage
 {
     /// <summary>
     /// a structure describing the location of page

@@ -1,6 +1,6 @@
 ﻿using System.Runtime.InteropServices;
 
-namespace Vicuna.Storage.Paging
+namespace Vicuna.Storage
 {
     [StructLayout(LayoutKind.Explicit, Pack = 1, Size = SizeOf)]
     public unsafe struct PageHeader
