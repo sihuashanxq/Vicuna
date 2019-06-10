@@ -17,6 +17,8 @@ namespace Vicuna.Storage.Buffers
 
         public Dictionary<PagePosition, PageBufferEntry> Hashes { get; }
 
+        public IPageManager PageManager { get; }
+
         public PageBufferPool(PageBufferPoolOptions options)
         {
             Options = options;
@@ -50,7 +52,7 @@ namespace Vicuna.Storage.Buffers
             }
 
             findEntry.LastTicks = DateTime.UtcNow.Ticks;
-            findEntry.ReferenceCount++;
+
             return findEntry;
         }
 

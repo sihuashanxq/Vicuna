@@ -1,25 +1,35 @@
 ﻿using System;
 using System.Runtime.CompilerServices;
 
-namespace Vicuna.Storage
+namespace Vicuna.Storage.Paging
 {
     public class Page
     {
-        const int Size = 16 * 1024;
-
         internal byte[] Data;
 
         internal ref byte Ptr => ref Data[0];
 
-        internal ref PageHeader Header => ref Read<PageHeader>(0, PageHeader.SizeOf);
+        internal virtual int Size => Constants.PageSize;
 
-        internal ref PageTailer Tailer => ref Read<PageTailer>(Size - 1 - PageTailer.SizeOf, PageTailer.SizeOf);
-
-        internal ref PagePosition Position => ref Unsafe.As<int, PagePosition>(ref Header.StoreId);
-
-        public Page() : this(new byte[Size])
+        [MethodImpl(MethodImplOptions.AggressiveInlining)]
+        internal ref THeader GetHeader<THeader>(int sizeOf) where THeader : struct, IPageHeader
         {
+            return ref Read<THeader>(0, sizeOf);
+        }
 
+        [MethodImpl(MethodImplOptions.AggressiveInlining)]
+        internal ref TTailer GetTailer<TTailer>(int sizeOf) where TTailer : struct, IPageTailer
+        {
+            return ref Read<TTailer>(Size - 1 - sizeOf, sizeOf);
+        }
+
+        internal PagePosition Position
+        {
+            get
+            {
+                ref var header = ref GetHeader<PageHeader>(PageHeader.SizeOf);
+                return new PagePosition(header.StoreId, header.PageNumber);
+            }
         }
 
         public Page(byte[] data)

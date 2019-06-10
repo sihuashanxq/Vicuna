@@ -1,6 +1,5 @@
 ﻿using System;
-
-namespace Vicuna.Storage.Abstractions.Stores
+namespace Vicuna.Storage.Stores
 {
     public interface IStore : IDisposable
     {
@@ -30,6 +29,11 @@ namespace Vicuna.Storage.Abstractions.Stores
         /// </summary>
         /// <param name="length"></param>
         void SetLength(long length);
+
+        /// <summary>
+        /// </summary>
+        /// <param name="length"></param>
+        void AddLength(long length);
 
         /// <summary>
         /// </summary>

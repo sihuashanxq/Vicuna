@@ -1,38 +1,38 @@
 ﻿using System;
 using System.Threading;
 
-namespace Vicuna.Storage.Buffers
+namespace Vicuna.Storage
 {
     public struct MutexContext : IDisposable
     {
-        private readonly LockMode _flags;
+        private readonly LockMode _mode;
 
         private readonly ReaderWriterLockSlim _mutex;
 
-        public static IDisposable Create(ReaderWriterLockSlim mutex, LockMode flags)
+        public static IDisposable Create(ReaderWriterLockSlim mutex, LockMode mode)
         {
-            switch (flags)
+            switch (mode)
             {
                 case LockMode.S_LOCK:
                     mutex?.EnterReadLock();
-                    return new MutexContext(mutex, flags);
+                    return new MutexContext(mutex, mode);
                 case LockMode.X_LOCK:
                     mutex?.EnterWriteLock();
-                    return new MutexContext(mutex, flags);
+                    return new MutexContext(mutex, mode);
                 default:
-                    return new MutexContext(mutex, flags);
+                    return new MutexContext(mutex, mode);
             }
         }
 
         public MutexContext(ReaderWriterLockSlim mutex, LockMode flags)
         {
-            _flags = flags;
+            _mode = flags;
             _mutex = mutex;
         }
 
         public void Dispose()
         {
-            switch (_flags)
+            switch (_mode)
             {
                 case LockMode.S_LOCK:
                     _mutex?.ExitReadLock();

@@ -1,7 +1,6 @@
 ﻿using System;
-using Vicuna.Storage.Abstractions.Stores;
 
-namespace Vicuna.Storage.Abstractions.Stores
+namespace Vicuna.Storage.Stores
 {
     public abstract class Store : IStore
     {
@@ -15,32 +14,35 @@ namespace Vicuna.Storage.Abstractions.Stores
 
         public abstract void SetLength(long length);
 
+        public virtual void AddLength(long length)
+        {
+            SetLength(Length + length);
+        }
+
         protected abstract void Dispose(bool disposing);
+
+        protected abstract void InternalRead(long pos, Span<byte> buffer);
+
+        protected abstract void InternalWrite(long pos, Span<byte> buffer);
 
         public virtual void Read(long pos, Span<byte> buffer)
         {
-            lock (SyncRoot)
+            if (pos < 0 || buffer.Length < 0 || pos + buffer.Length > Length)
             {
-                if (pos < 0 || buffer.Length < 0 || pos + buffer.Length > Length)
-                {
-                    throw new ArgumentOutOfRangeException($"read {buffer.Length} bytes at pos: {pos} out of the store's size!");
-                }
-
-                InternalRead(pos, buffer);
+                throw new ArgumentOutOfRangeException($"read {buffer.Length} bytes at pos: {pos} out of the store's size!");
             }
+
+            InternalRead(pos, buffer);
         }
 
         public virtual void Write(long pos, Span<byte> buffer)
         {
-            lock (SyncRoot)
+            if (pos < 0 || buffer.Length < 0 || pos + buffer.Length > Length)
             {
-                if (pos < 0 || buffer.Length < 0 || pos + buffer.Length > Length)
-                {
-                    throw new ArgumentOutOfRangeException($"read {buffer.Length} bytes at pos: {pos} out of the store's size!");
-                }
-
-                InternalWrite(pos, buffer);
+                throw new ArgumentOutOfRangeException($"read {buffer.Length} bytes at pos: {pos} out of the store's size!");
             }
+
+            InternalWrite(pos, buffer);
         }
 
         public virtual void Write(long pos, byte[] buffer, int offset, int len)
@@ -58,10 +60,6 @@ namespace Vicuna.Storage.Abstractions.Stores
             Write(pos, buffer.AsSpan().Slice(offset, len));
         }
 
-        protected abstract void InternalRead(long pos, Span<byte> buffer);
-
-        protected abstract void InternalWrite(long pos, Span<byte> buffer);
-
         ~Store()
         {
             Dispose(true);
@@ -72,5 +70,6 @@ namespace Vicuna.Storage.Abstractions.Stores
             Dispose(true);
             GC.SuppressFinalize(this);
         }
+
     }
 }

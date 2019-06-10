@@ -34,5 +34,10 @@ namespace Vicuna.Storage.Buffers
             LastTicks = DateTime.UtcNow.Ticks;
             Mutex = new ReaderWriterLockSlim(LockRecursionPolicy.NoRecursion);
         }
+
+        public IDisposable EnterLock(LockMode mode)
+        {
+            return MutexContext.Create(Mutex, mode);
+        }
     }
 }

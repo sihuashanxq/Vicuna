@@ -7,9 +7,9 @@ namespace Vicuna.Storage.Data.Trees
     {
         internal Page Page;
 
-        internal ref PageTailer Tailer => ref Page.Tailer;
+        //internal ref PageTailer Tailer => ref Page.Tailer;
 
-        internal ref TreePageHeader Header => ref Page.Read<TreePageHeader>(0, TreePageHeader.SizeOf);
+        //internal ref TreePageHeader Header => ref Page.Read<TreePageHeader>(0, TreePageHeader.SizeOf);
 
         public TreePage(Page page)
         {
@@ -18,10 +18,10 @@ namespace Vicuna.Storage.Data.Trees
                 throw new ArgumentNullException(nameof(page));
             }
 
-            if (page.Header.Flags != PageHeaderFlags.BTree)
-            {
-                throw new ArgumentException($"page:{page.Header} is not a btree page!");
-            }
+            //if (page.Header.Flags != PageHeaderFlags.BTree)
+            //{
+            //    throw new ArgumentException($"page:{page.Header} is not a btree page!");
+            //}
 
             Page = page;
         }

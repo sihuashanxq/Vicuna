@@ -1,6 +1,5 @@
 ﻿using System;
 using System.IO;
-using Vicuna.Storage.Abstractions.Stores;
 
 namespace Vicuna.Storage.Stores
 {
@@ -45,22 +44,16 @@ namespace Vicuna.Storage.Stores
         /// <param name="length"></param>
         public override void SetLength(long length)
         {
-            lock (SyncRoot)
-            {
-                CheckDisposed();
-                File.SetLength(length);
-            }
+            CheckDisposed();
+            File.SetLength(length);
         }
 
         /// <summary>
         /// </summary>
         public override void Sync()
         {
-            lock (SyncRoot)
-            {
-                CheckDisposed();
-                File.Flush(true);
-            }
+            CheckDisposed();
+            File.Flush(true);
         }
 
         /// <summary>

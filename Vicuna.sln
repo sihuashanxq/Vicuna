@@ -5,7 +5,11 @@ VisualStudioVersion = 15.0.28307.572
 MinimumVisualStudioVersion = 10.0.40219.1
 Project("{2150E333-8FDC-42A3-9474-1A3956D46DE8}") = "src", "src", "{C8F474B7-DD9A-451B-910B-B217E27C6596}"
 EndProject
-Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "Vicuna.Storage", "src\Vicuna.Storage\Vicuna.Storage.csproj", "{7B279227-626F-472A-A57E-FC472001418C}"
+Project("{9A19103F-16F7-4668-BE54-9A1E7A4F7556}") = "Vicuna.Storage", "src\Vicuna.Storage\Vicuna.Storage.csproj", "{7B279227-626F-472A-A57E-FC472001418C}"
+EndProject
+Project("{2150E333-8FDC-42A3-9474-1A3956D46DE8}") = "test", "test", "{03C57857-C82E-477E-9341-8220F1769F4B}"
+EndProject
+Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "Vicuna.Storage.Test", "test\Vicuna.Storage.Test\Vicuna.Storage.Test.csproj", "{A243F62A-CAAF-449E-8A48-B9A14BEF2FF3}"
 EndProject
 Global
 	GlobalSection(SolutionConfigurationPlatforms) = preSolution
@@ -17,12 +21,17 @@ Global
 		{7B279227-626F-472A-A57E-FC472001418C}.Debug|Any CPU.Build.0 = Debug|Any CPU
 		{7B279227-626F-472A-A57E-FC472001418C}.Release|Any CPU.ActiveCfg = Release|Any CPU
 		{7B279227-626F-472A-A57E-FC472001418C}.Release|Any CPU.Build.0 = Release|Any CPU
+		{A243F62A-CAAF-449E-8A48-B9A14BEF2FF3}.Debug|Any CPU.ActiveCfg = Debug|Any CPU
+		{A243F62A-CAAF-449E-8A48-B9A14BEF2FF3}.Debug|Any CPU.Build.0 = Debug|Any CPU
+		{A243F62A-CAAF-449E-8A48-B9A14BEF2FF3}.Release|Any CPU.ActiveCfg = Release|Any CPU
+		{A243F62A-CAAF-449E-8A48-B9A14BEF2FF3}.Release|Any CPU.Build.0 = Release|Any CPU
 	EndGlobalSection
 	GlobalSection(SolutionProperties) = preSolution
 		HideSolutionNode = FALSE
 	EndGlobalSection
 	GlobalSection(NestedProjects) = preSolution
 		{7B279227-626F-472A-A57E-FC472001418C} = {C8F474B7-DD9A-451B-910B-B217E27C6596}
+		{A243F62A-CAAF-449E-8A48-B9A14BEF2FF3} = {03C57857-C82E-477E-9341-8220F1769F4B}
 	EndGlobalSection
 	GlobalSection(ExtensibilityGlobals) = postSolution
 		SolutionGuid = {AD86F1C5-88BE-4B4F-91C8-E286AAD2BD37}
