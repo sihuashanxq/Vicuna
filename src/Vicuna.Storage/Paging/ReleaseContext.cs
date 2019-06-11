@@ -1,14 +1,15 @@
 ﻿using Vicuna.Storage.Buffers;
+using Vicuna.Storage.Transactions;
 
 namespace Vicuna.Storage.Paging
 {
     /// <summary>
-    /// the context to release page
+    /// page release context
     /// </summary>
     public struct ReleaseContext
     {
         /// <summary>
-        /// the pages will be released
+        /// the pages to be released
         /// </summary>
         public Page[] Pages { get; set; }
 
@@ -22,7 +23,7 @@ namespace Vicuna.Storage.Paging
         /// </summary>
         public ILowLevelTransaction Transaction { get; set; }
 
-        public ref PageStoreRootHeader RootHeader
-           => ref RootEntry.Page.GetHeader<PageStoreRootHeader>(PageStoreRootHeader.SizeOf);
+        public ref PagedStoreRootHeader RootHeader
+           => ref RootEntry.Page.GetHeader<PagedStoreRootHeader>(PagedStoreRootHeader.SizeOf);
     }
 }

@@ -39,5 +39,15 @@ namespace Vicuna.Storage.Buffers
         {
             return MutexContext.Create(Mutex, mode);
         }
+
+        public override int GetHashCode()
+        {
+            return Page.Position.GetHashCode();
+        }
+
+        public override bool Equals(object obj)
+        {
+            return Page.Position.Equals(obj);
+        }
     }
 }

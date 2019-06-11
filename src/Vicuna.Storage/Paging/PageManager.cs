@@ -1,7 +1,7 @@
 ﻿using System;
 using System.Collections.Generic;
+using Vicuna.Storage.Journal;
 using Vicuna.Storage.Stores;
-using Vicuna.Storage.Buffers;
 
 namespace Vicuna.Storage.Paging
 {
@@ -70,7 +70,7 @@ namespace Vicuna.Storage.Paging
             return new Page(buffer);
         }
 
-        public virtual void Release(ReleaseContext ctx)
+        public virtual void Release(ref ReleaseContext ctx)
         {
             if (Handler != null)
             {
@@ -78,9 +78,13 @@ namespace Vicuna.Storage.Paging
             }
         }
 
-        public virtual PagePosition[] Allocate(AllocationContext ctx)
+        /// <summary>
+        /// </summary>
+        /// <param name="ctx"></param>
+        /// <returns></returns>
+        public virtual PagePosition[] Allocate(ref AllocationContext ctx)
         {
-            var id = ctx.RootHeader.GetStoreId();
+            var id = ctx.RootHeader.StoreId;
             if (id < 0)
             {
                 throw new ArgumentException($"store's id invalid!");
@@ -107,20 +111,17 @@ namespace Vicuna.Storage.Paging
 
             using (ctx.RootEntry.EnterLock(LockMode.X_LOCK))
             {
-                var size = (ctx.Count - index) * Constants.PageSize;
-                var pageNumber = Allocate(store, size, ref ctx.RootHeader);
+                var pageNumber = Allocate(store, (ctx.Count - index) * Constants.PageSize, ref ctx);
                 if (pageNumber <= 0)
                 {
-                    throw new InvalidOperationException($"allocate page failed,storeId:{id}");
+                    throw new InvalidOperationException($"failed to allocate pages,storeId:{id}");
                 }
 
                 for (var i = index; i < pages.Length; i++)
                 {
-                    pages[i] = new PagePosition(id, pageNumber * Constants.PageSize);
-                    pageNumber++;
+                    pages[i] = new PagePosition(id, pageNumber);
+                    pageNumber += Constants.PageSize;
                 }
-
-                ctx.Transaction.AppendJournalStoreAllcates(ctx.RootEntry, ctx.RootHeader.Length, ctx.RootHeader.LastPageNumber);
             }
 
             return pages;
@@ -132,8 +133,9 @@ namespace Vicuna.Storage.Paging
         /// <param name="size"></param>
         /// <param name="root"></param>
         /// <returns></returns>
-        private static long Allocate(IStore store, long size, ref PageStoreRootHeader root)
+        private static long Allocate(IStore store, long size, ref AllocationContext ctx)
         {
+            ref var root = ref ctx.RootHeader;
             var last = root.LastPageNumber;
             if (size > root.Length - root.LastPageNumber)
             {
@@ -145,12 +147,26 @@ namespace Vicuna.Storage.Paging
             }
 
             root.LastPageNumber += size;
+            WriteAllocatePagesJournal(ref ctx);
+
             return last;
         }
-    }
 
-    public interface ILowLevelTransaction
-    {
-        void AppendJournalStoreAllcates(PageBufferEntry entry, long length, long lastPageNumber);
+        /// <summary>
+        /// </summary>
+        /// <param name=""></param>
+        private static void WriteAllocatePagesJournal(ref AllocationContext ctx)
+        {
+            var journal = new byte[16 + 2];
+            var buffer = (Span<byte>)journal;
+            var offset = PagedStoreRootHeader.Offset(nameof(ctx.RootHeader.Length));
+
+            //offset|Length|LastPageNumber
+            BitConverter.TryWriteBytes(buffer.Slice(0, 2), offset);
+            BitConverter.TryWriteBytes(buffer.Slice(2, 8), ctx.RootHeader.Length);
+            BitConverter.TryWriteBytes(buffer.Slice(10, 8), ctx.RootHeader.LastPageNumber);
+
+            ctx.Transaction.WriteJournal(ctx.RootEntry, JournlaFlags.Set_Byte16, journal);
+        }
     }
 }

@@ -1,9 +1,12 @@
-﻿using Vicuna.Storage.Buffers;
+﻿using System;
+using Vicuna.Storage.Buffers;
+using Vicuna.Storage.Journal;
+using Vicuna.Storage.Transactions;
 
 namespace Vicuna.Storage.Paging
 {
     /// <summary>
-    /// the context for allocate page
+    /// page allocation context
     /// </summary>
     public struct AllocationContext
     {
@@ -27,7 +30,7 @@ namespace Vicuna.Storage.Paging
         /// </summary>
         public ILowLevelTransaction Transaction { get; set; }
 
-        public ref PageStoreRootHeader RootHeader
-            => ref RootEntry.Page.GetHeader<PageStoreRootHeader>(PageStoreRootHeader.SizeOf);
+        public ref PagedStoreRootHeader RootHeader
+            => ref RootEntry.Page.GetHeader<PagedStoreRootHeader>(PagedStoreRootHeader.SizeOf);
     }
 }

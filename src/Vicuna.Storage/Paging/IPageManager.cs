@@ -27,12 +27,12 @@ namespace Vicuna.Storage.Paging
         /// <summary>
         /// </summary>
         /// <param name="page"></param>
-        void Release(ReleaseContext ctx);
+        void Release(ref ReleaseContext ctx);
 
         /// <summary>
         /// </summary>
         /// <param name="ctx"></param>
         /// <returns></returns>
-        PagePosition[] Allocate(AllocationContext ctx);
+        PagePosition[] Allocate(ref AllocationContext ctx);
     }
 }

@@ -5,7 +5,7 @@ namespace Vicuna.Storage.Stores
 {
     /// <summary>
     /// </summary>
-    public class FileDataStore : Store
+    public class FileStore : Store
     {
         private bool _disposed;
 
@@ -33,7 +33,7 @@ namespace Vicuna.Storage.Stores
         /// </summary>
         /// <param name="id"></param>
         /// <param name="file"></param>
-        public FileDataStore(int id, FileStream file)
+        public FileStore(int id, FileStream file)
         {
             Id = id;
             File = file ?? throw new ArgumentNullException(nameof(file));

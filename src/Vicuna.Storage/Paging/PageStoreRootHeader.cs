@@ -5,7 +5,7 @@ using System.Runtime.InteropServices;
 namespace Vicuna.Storage.Paging
 {
     [StructLayout(LayoutKind.Explicit, Pack = 1, Size = SizeOf)]
-    public unsafe struct PageStoreRootHeader : IPageHeader
+    public unsafe struct PagedStoreRootHeader : IPageHeader
     {
         public const int SizeOf = 96;
 
@@ -37,7 +37,7 @@ namespace Vicuna.Storage.Paging
         public fixed byte Reserved[SizeOf - 53 - 1];
 
         [MethodImpl(MethodImplOptions.AggressiveInlining)]
-        public static int Offset(string name)
+        public static short Offset(string name)
         {
             switch (name)
             {
