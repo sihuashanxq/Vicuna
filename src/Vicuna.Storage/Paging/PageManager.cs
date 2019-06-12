@@ -1,20 +1,21 @@
 ﻿using System;
 using System.Collections.Generic;
-using Vicuna.Storage.Journal;
+
 using Vicuna.Storage.Stores;
+using Vicuna.Storage.Transactions.Extensions;
 
 namespace Vicuna.Storage.Paging
 {
     public class PageManager : IPageManager
     {
-        public IPageFreeHandler Handler { get; }
+        public IPageFreeHandler FreeHandler { get; }
 
         public Dictionary<int, IStore> Stores { get; }
 
         public PageManager(Dictionary<int, IStore> stores, IPageFreeHandler handler)
         {
             Stores = stores ?? throw new ArgumentNullException(nameof(stores));
-            Handler = handler ?? throw new ArgumentNullException(nameof(handler));
+            FreeHandler = handler ?? throw new ArgumentNullException(nameof(handler));
         }
 
         protected virtual IStore GetStore(int id)
@@ -72,9 +73,9 @@ namespace Vicuna.Storage.Paging
 
         public virtual void Release(ref ReleaseContext ctx)
         {
-            if (Handler != null)
+            if (FreeHandler != null)
             {
-                Handler.Release(ctx);
+                FreeHandler.Release(ctx);
             }
         }
 
@@ -101,7 +102,7 @@ namespace Vicuna.Storage.Paging
 
             if (ctx.Mode == AllocationMode.Normal)
             {
-                index = Handler?.Allocate(ctx, pages) ?? 0;
+                index = FreeHandler?.Allocate(ctx, pages) ?? 0;
             }
 
             if (ctx.Count == index)
@@ -131,42 +132,28 @@ namespace Vicuna.Storage.Paging
         /// </summary>
         /// <param name="store"></param>
         /// <param name="size"></param>
-        /// <param name="root"></param>
+        /// <param name="ctx"></param>
         /// <returns></returns>
-        private static long Allocate(IStore store, long size, ref AllocationContext ctx)
+        private unsafe static long Allocate(IStore store, long size, ref AllocationContext ctx)
         {
-            ref var root = ref ctx.RootHeader;
-            var last = root.LastPageNumber;
-            if (size > root.Length - root.LastPageNumber)
+            var tx = ctx.Transaction;
+            ref var header = ref ctx.RootHeader;
+            var last = header.LastPageNumber;
+            if (last + size > store.Length)
             {
                 lock (store.SyncRoot)
                 {
                     store.AddLength(size);
-                    root.Length += size;
                 }
+
+                header.Length += size;
+                tx.WriteSetByte8JournalLog(ctx.RootEntry, header[nameof(header.Length)], header.Length);
             }
 
-            root.LastPageNumber += size;
-            WriteAllocatePagesJournal(ref ctx);
+            header.LastPageNumber += size;
+            tx.WriteSetByte8JournalLog(ctx.RootEntry, header[nameof(header.LastPageNumber)], header.LastPageNumber);
 
             return last;
-        }
-
-        /// <summary>
-        /// </summary>
-        /// <param name=""></param>
-        private static void WriteAllocatePagesJournal(ref AllocationContext ctx)
-        {
-            var journal = new byte[16 + 2];
-            var buffer = (Span<byte>)journal;
-            var offset = PagedStoreRootHeader.Offset(nameof(ctx.RootHeader.Length));
-
-            //offset|Length|LastPageNumber
-            BitConverter.TryWriteBytes(buffer.Slice(0, 2), offset);
-            BitConverter.TryWriteBytes(buffer.Slice(2, 8), ctx.RootHeader.Length);
-            BitConverter.TryWriteBytes(buffer.Slice(10, 8), ctx.RootHeader.LastPageNumber);
-
-            ctx.Transaction.WriteJournal(ctx.RootEntry, JournlaFlags.Set_Byte16, journal);
         }
     }
 }

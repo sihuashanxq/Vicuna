@@ -1,10 +1,11 @@
-﻿using System.Runtime.InteropServices;
+﻿using System.Runtime.CompilerServices;
+using System.Runtime.InteropServices;
 using Vicuna.Storage.Paging;
 
 namespace Vicuna.Storage.Data.Trees
 {
     [StructLayout(LayoutKind.Explicit, Pack = 1, Size = SizeOf)]
-    public unsafe struct TreePageHeader
+    public unsafe struct TreePageHeader : IPageHeader
     {
         internal const int SizeOf = 96;
 
@@ -21,27 +22,60 @@ namespace Vicuna.Storage.Data.Trees
         public long LSN;
 
         [FieldOffset(21)]
+        public byte Depth;
+
+        [FieldOffset(22)]
         public long PrevPageNumber;
 
-        [FieldOffset(29)]
+        [FieldOffset(30)]
         public long NextPageNumber;
 
-        [FieldOffset(37)]
+        [FieldOffset(38)]
         public ushort Low;
 
-        [FieldOffset(39)]
+        [FieldOffset(40)]
         public ushort Upper;
 
-        [FieldOffset(41)]
+        [FieldOffset(42)]
         public ushort Count;
 
-        [FieldOffset(43)]
+        [FieldOffset(44)]
         public ushort UsedSize;
 
-        [FieldOffset(44)]
+        [FieldOffset(46)]
         public TreeNodeFlags NodeFlags;
 
-        [FieldOffset(45)]
-        public fixed byte Reserved[41];
+        [FieldOffset(47)]
+        public fixed byte Reserved[SizeOf - 47 - 1];
+
+        [MethodImpl(MethodImplOptions.AggressiveInlining)]
+        public long GetLSN()
+        {
+            return LSN;
+        }
+
+        [MethodImpl(MethodImplOptions.AggressiveInlining)]
+        public long GetSizeOf()
+        {
+            return SizeOf;
+        }
+
+        [MethodImpl(MethodImplOptions.AggressiveInlining)]
+        public int GetStoreId()
+        {
+            return StoreId;
+        }
+
+        [MethodImpl(MethodImplOptions.AggressiveInlining)]
+        public long GetPageNumber()
+        {
+            return PageNumber;
+        }
+
+        [MethodImpl(MethodImplOptions.AggressiveInlining)]
+        public PageHeaderFlags GetFlags()
+        {
+            return Flags;
+        }
     }
 }

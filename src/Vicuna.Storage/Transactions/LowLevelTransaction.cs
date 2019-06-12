@@ -17,7 +17,7 @@ namespace Vicuna.Storage.Transactions
 
         }
 
-        public void WriteJournal(PageBufferEntry entry, JournlaFlags flags, byte[] buffer)
+        public void WriteJournalLog(PageBufferEntry entry, JournalFlags flags, byte[] buffer)
         {
             throw new System.NotImplementedException();
         }

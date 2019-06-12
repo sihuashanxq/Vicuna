@@ -36,29 +36,32 @@ namespace Vicuna.Storage.Paging
         [FieldOffset(53)]
         public fixed byte Reserved[SizeOf - 53 - 1];
 
-        [MethodImpl(MethodImplOptions.AggressiveInlining)]
-        public static short Offset(string name)
+        public short this[string name]
         {
-            switch (name)
+            [MethodImpl(MethodImplOptions.AggressiveInlining)]
+            get
             {
-                case nameof(Flags):
-                    return 0;
-                case nameof(StoreId):
-                    return 1;
-                case nameof(PageNumber):
-                    return 5;
-                case nameof(LSN):
-                    return 13;
-                case nameof(Length):
-                    return 21;
-                case nameof(LastPageNumber):
-                    return 29;
-                case nameof(RootPageNumber):
-                    return 37;
-                case nameof(FreeRootPageNumber):
-                    return 53;
-                default:
-                    throw new InvalidOperationException($"invalid field name:{name}");
+                switch (name)
+                {
+                    case nameof(Flags):
+                        return 0;
+                    case nameof(StoreId):
+                        return 1;
+                    case nameof(PageNumber):
+                        return 5;
+                    case nameof(LSN):
+                        return 13;
+                    case nameof(Length):
+                        return 21;
+                    case nameof(LastPageNumber):
+                        return 29;
+                    case nameof(RootPageNumber):
+                        return 37;
+                    case nameof(FreeRootPageNumber):
+                        return 53;
+                    default:
+                        throw new InvalidOperationException($"invalid field name:{name}");
+                }
             }
         }
 

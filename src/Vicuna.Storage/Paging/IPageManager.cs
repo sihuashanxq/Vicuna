@@ -7,7 +7,7 @@ namespace Vicuna.Storage.Paging
     {
         /// <summary>
         /// </summary>
-        IPageFreeHandler Handler { get; }
+        IPageFreeHandler FreeHandler { get; }
 
         /// <summary>
         /// </summary>
