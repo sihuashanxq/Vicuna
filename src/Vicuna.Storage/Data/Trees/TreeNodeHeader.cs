@@ -1,7 +1,7 @@
 ﻿using System.Runtime.CompilerServices;
 using System.Runtime.InteropServices;
 
-namespace Vicuna.Storage.Data.Trees
+namespace Vicuna.Engine.Data.Trees
 {
     [StructLayout(LayoutKind.Explicit, Pack = 1, Size = SizeOf)]
     public struct TreeNodeHeader
@@ -17,7 +17,7 @@ namespace Vicuna.Storage.Data.Trees
         public ushort KeySize;
 
         [FieldOffset(3)]
-        public uint DataSize;
+        public ushort DataSize;
 
         [FieldOffset(3)]
         public long PageNumber;
@@ -32,12 +32,11 @@ namespace Vicuna.Storage.Data.Trees
             {
                 case TreeNodeHeaderFlags.Data:
                     return (ushort)(SizeOf + SlotSize + KeySize + DataSize + TreeNodeTransactionHeader.SizeOf);
-                case TreeNodeHeaderFlags.DataRef:
+                case TreeNodeHeaderFlags.DataNoneTrx:
                     return (ushort)(SizeOf + SlotSize + KeySize + DataSize);
                 default:
                     return (ushort)(SizeOf + SlotSize + KeySize);
             }
         }
     }
-
 }

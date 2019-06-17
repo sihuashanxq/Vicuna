@@ -1,6 +1,6 @@
 ﻿using System.Runtime.InteropServices;
 
-namespace Vicuna.Storage.Paging
+namespace Vicuna.Engine.Paging
 {
     /// <summary>
     /// a structure describing the location of page
@@ -11,26 +11,26 @@ namespace Vicuna.Storage.Paging
         public const int SizeOf = sizeof(int) + sizeof(long);
 
         /// <summary>
-        /// the store's id which is page in
+        /// the storage's id which is page in
         /// </summary>
         [FieldOffset(0)]
-        public int StoreId;
+        public int StorageId;
 
         /// <summary>
-        /// the page's number in store
+        /// the page's number in storage
         /// </summary>
         [FieldOffset(4)]
         public long PageNumber;
 
-        public PagePosition(int storeId, long pageNumber)
+        public PagePosition(int storageId, long pageNumber)
         {
-            StoreId = storeId;
+            StorageId = storageId;
             PageNumber = pageNumber;
         }
 
         public override int GetHashCode()
         {
-            var hashCode = StoreId;
+            var hashCode = StorageId;
 
             hashCode += hashCode * 31 ^ PageNumber.GetHashCode();
 
@@ -46,7 +46,7 @@ namespace Vicuna.Storage.Paging
 
             if (obj is PagePosition pos)
             {
-                return pos.StoreId == StoreId && pos.PageNumber == PageNumber;
+                return pos.StorageId == StorageId && pos.PageNumber == PageNumber;
             }
 
             return false;
@@ -60,6 +60,11 @@ namespace Vicuna.Storage.Paging
         public static bool operator !=(PagePosition p1, PagePosition p2)
         {
             return !p1.Equals(p2);
+        }
+
+        public override string ToString()
+        {
+            return $"{StorageId}:{PageNumber}";
         }
     }
 }

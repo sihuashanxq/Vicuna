@@ -1,7 +1,7 @@
 ﻿using System;
 using System.Runtime.CompilerServices;
 
-namespace Vicuna.Storage.Paging
+namespace Vicuna.Engine.Paging
 {
     public class Page
     {
@@ -11,25 +11,22 @@ namespace Vicuna.Storage.Paging
 
         internal virtual int Size => Constants.PageSize;
 
-        [MethodImpl(MethodImplOptions.AggressiveInlining)]
-        internal ref THeader GetHeader<THeader>(int sizeOf) where THeader : struct, IPageHeader
+        public ref PageHeader Header
         {
-            return ref Read<THeader>(0, sizeOf);
+            [MethodImpl(MethodImplOptions.AggressiveInlining)]
+            get => ref Read<PageHeader>(0);
         }
 
-        [MethodImpl(MethodImplOptions.AggressiveInlining)]
-        internal ref TTailer GetTailer<TTailer>(int sizeOf) where TTailer : struct, IPageTailer
+        public ref PageTailer Tailer
         {
-            return ref Read<TTailer>(Size - 1 - sizeOf, sizeOf);
+            [MethodImpl(MethodImplOptions.AggressiveInlining)]
+            get => ref Read<PageTailer>(Size - 1 - PageTailer.SizeOf, PageTailer.SizeOf);
         }
 
-        internal PagePosition Position
+        public ref PagePosition Position
         {
-            get
-            {
-                ref var header = ref GetHeader<PageHeader>(PageHeader.SizeOf);
-                return new PagePosition(header.StoreId, header.PageNumber);
-            }
+            [MethodImpl(MethodImplOptions.AggressiveInlining)]
+            get => ref Read<PagePosition>(1);
         }
 
         public Page(byte[] data)
@@ -50,7 +47,7 @@ namespace Vicuna.Storage.Paging
         [MethodImpl(MethodImplOptions.AggressiveInlining)]
         public virtual Span<byte> Slice(int offset, int len)
         {
-            if (offset + len > Size)
+            if (offset < 0 || offset + len > Size)
             {
                 throw new ArgumentOutOfRangeException(nameof(offset));
             }
@@ -112,6 +109,22 @@ namespace Vicuna.Storage.Paging
             }
 
             Unsafe.CopyBlockUnaligned(ref Data[offset], ref value, len);
+        }
+
+        [MethodImpl(MethodImplOptions.AggressiveInlining)]
+        public void CopyTo(Page dest)
+        {
+            Unsafe.CopyBlockUnaligned(ref dest.Data[0], ref Data[0], (uint)Data.Length);
+        }
+
+        [MethodImpl(MethodImplOptions.AggressiveInlining)]
+        public Page CreateCopy()
+        {
+            var buffer = new byte[Data.Length];
+
+            Unsafe.CopyBlockUnaligned(ref buffer[0], ref Data[0], (uint)buffer.Length);
+
+            return new Page(buffer);
         }
     }
 }

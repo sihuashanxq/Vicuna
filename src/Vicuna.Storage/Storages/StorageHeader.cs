@@ -2,10 +2,10 @@
 using System.Runtime.CompilerServices;
 using System.Runtime.InteropServices;
 
-namespace Vicuna.Storage.Paging
+namespace Vicuna.Engine.Storages
 {
     [StructLayout(LayoutKind.Explicit, Pack = 1, Size = SizeOf)]
-    public unsafe struct PagedStoreRootHeader : IPageHeader
+    public unsafe struct StorageHeader 
     {
         public const int SizeOf = 96;
 
@@ -33,10 +33,10 @@ namespace Vicuna.Storage.Paging
         [FieldOffset(45)]
         public long FreeRootPageNumber;
 
-        [FieldOffset(53)]
-        public fixed byte Reserved[SizeOf - 53 - 1];
+        [FieldOffset(37)]
+        public fixed byte Reserved[SizeOf - 37 - 1];
 
-        public short this[string name]
+        public ushort this[string name]
         {
             [MethodImpl(MethodImplOptions.AggressiveInlining)]
             get
@@ -63,36 +63,6 @@ namespace Vicuna.Storage.Paging
                         throw new InvalidOperationException($"invalid field name:{name}");
                 }
             }
-        }
-
-        [MethodImpl(MethodImplOptions.AggressiveInlining)]
-        public long GetLSN()
-        {
-            return LSN;
-        }
-
-        [MethodImpl(MethodImplOptions.AggressiveInlining)]
-        public long GetSizeOf()
-        {
-            return SizeOf;
-        }
-
-        [MethodImpl(MethodImplOptions.AggressiveInlining)]
-        public int GetStoreId()
-        {
-            return StoreId;
-        }
-
-        [MethodImpl(MethodImplOptions.AggressiveInlining)]
-        public long GetPageNumber()
-        {
-            return PageNumber;
-        }
-
-        [MethodImpl(MethodImplOptions.AggressiveInlining)]
-        public PageHeaderFlags GetFlags()
-        {
-            return Flags;
         }
     }
 }

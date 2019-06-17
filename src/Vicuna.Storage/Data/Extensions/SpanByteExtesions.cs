@@ -1,7 +1,7 @@
 ﻿using System;
 using System.Runtime.CompilerServices;
 
-namespace Vicuna.Storage.Data.Extensions
+namespace Vicuna.Engine.Data.Extensions
 {
     public static class SpanByteExtesions
     {

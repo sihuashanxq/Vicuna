@@ -1,26 +1,25 @@
 ﻿using System;
 using System.Collections.Generic;
+using System.Runtime.InteropServices;
+using Vicuna.Engine.Storages;
 
-using Vicuna.Storage.Stores;
-using Vicuna.Storage.Transactions.Extensions;
-
-namespace Vicuna.Storage.Paging
+namespace Vicuna.Engine.Paging
 {
-    public class PageManager : IPageManager
+    public class PageManager
     {
         public IPageFreeHandler FreeHandler { get; }
 
-        public Dictionary<int, IStore> Stores { get; }
+        public Dictionary<int, Storage> Stroages { get; }
 
-        public PageManager(Dictionary<int, IStore> stores, IPageFreeHandler handler)
+        public PageManager(Dictionary<int, Storage> stroages, IPageFreeHandler handler)
         {
-            Stores = stores ?? throw new ArgumentNullException(nameof(stores));
+            Stroages = stroages ?? throw new ArgumentNullException(nameof(stroages));
             FreeHandler = handler ?? throw new ArgumentNullException(nameof(handler));
         }
 
-        protected virtual IStore GetStore(int id)
+        protected virtual Storage GetStorage(int id)
         {
-            return Stores.TryGetValue(id, out var store) ? store : null;
+            return Stroages.TryGetValue(id, out var store) ? store : null;
         }
 
         public virtual void SetPage(Page page)
@@ -30,43 +29,27 @@ namespace Vicuna.Storage.Paging
                 throw new ArgumentNullException(nameof(page));
             }
 
-            var pos = page.Position;
-            if (pos.StoreId < 0)
+            var position = page.Position;
+            var storage = GetStorage(position.StorageId);
+            if (storage == null)
             {
-                throw new ArgumentException($"page's store id{pos.StoreId} is invalid");
+                throw new KeyNotFoundException($" the store can not be found,id:{position.StorageId}!");
             }
 
-            if (pos.PageNumber < 0)
-            {
-                throw new ArgumentException($"page's store page-number{pos.PageNumber} is invalid");
-            }
-
-            var store = GetStore(pos.StoreId);
-            if (store == null)
-            {
-                throw new KeyNotFoundException($" the store can not be found,id:{pos.StoreId}!");
-            }
-
-            lock (store.SyncRoot)
-            {
-                store.Write(pos.PageNumber, page.Data);
-            }
+            storage.Write(position.PageNumber, page.Data);
         }
 
         public virtual Page GetPage(PagePosition pos)
         {
-            var store = GetStore(pos.StoreId);
+            var store = GetStorage(pos.StorageId);
             if (store == null)
             {
-                throw new KeyNotFoundException($" the store can not be found,id:{pos.StoreId}!");
+                throw new KeyNotFoundException($" the store can not be found,id:{pos.StorageId}!");
             }
 
             var buffer = new byte[Constants.PageSize];
 
-            lock (store.SyncRoot)
-            {
-                store.Read(pos.PageNumber, buffer);
-            }
+            store.Read(pos.PageNumber, buffer);
 
             return new Page(buffer);
         }
@@ -85,73 +68,67 @@ namespace Vicuna.Storage.Paging
         /// <returns></returns>
         public virtual PagePosition[] Allocate(ref AllocationContext ctx)
         {
-            var id = ctx.RootHeader.StoreId;
-            if (id < 0)
+            var storage = GetStorage(ctx.StorageId);
+            if (storage == null)
             {
-                throw new ArgumentException($"store's id invalid!");
-            }
-
-            var store = GetStore(id);
-            if (store == null)
-            {
-                throw new KeyNotFoundException($"the store can not be found,id:{id}!");
+                throw new KeyNotFoundException($"the storage can not be found,id:{ctx.StorageId}!");
             }
 
             var index = 0;
-            var pages = new PagePosition[ctx.Count];
+            var positions = new PagePosition[ctx.Count];
 
             if (ctx.Mode == AllocationMode.Normal)
             {
-                index = FreeHandler?.Allocate(ctx, pages) ?? 0;
+                index = FreeHandler?.Allocate(ctx, positions) ?? 0;
             }
 
             if (ctx.Count == index)
             {
-                return pages;
+                return positions;
             }
 
-            using (ctx.RootEntry.EnterLock(LockMode.X_LOCK))
+            var pageNumber = Allocate(storage, (ctx.Count - index) * Constants.PageSize, ref ctx);
+            if (pageNumber <= 0)
             {
-                var pageNumber = Allocate(store, (ctx.Count - index) * Constants.PageSize, ref ctx);
-                if (pageNumber <= 0)
-                {
-                    throw new InvalidOperationException($"failed to allocate pages,storeId:{id}");
-                }
-
-                for (var i = index; i < pages.Length; i++)
-                {
-                    pages[i] = new PagePosition(id, pageNumber);
-                    pageNumber += Constants.PageSize;
-                }
+                throw new InvalidOperationException($"failed to allocate pages ,store-id:{ctx.StorageId},count:{ctx.Count - index}");
             }
 
-            return pages;
+            for (var i = index; i < positions.Length; i++)
+            {
+                positions[i] = new PagePosition(ctx.StorageId, pageNumber);
+                pageNumber += Constants.PageSize;
+            }
+
+            return positions;
         }
 
         /// <summary>
         /// </summary>
-        /// <param name="store"></param>
+        /// <param name="storage"></param>
         /// <param name="size"></param>
         /// <param name="ctx"></param>
         /// <returns></returns>
-        private unsafe static long Allocate(IStore store, long size, ref AllocationContext ctx)
+        private unsafe static long Allocate(Storage storage, long size, ref AllocationContext ctx)
         {
-            var tx = ctx.Transaction;
-            ref var header = ref ctx.RootHeader;
-            var last = header.LastPageNumber;
-            if (last + size > store.Length)
-            {
-                lock (store.SyncRoot)
-                {
-                    store.AddLength(size);
-                }
+            var trx = ctx.Transaction;
+            var journal = trx.Journal;
 
-                header.Length += size;
-                tx.WriteSetByte8JournalLog(ctx.RootEntry, header[nameof(header.Length)], header.Length);
+            //enter lock and hold it
+            ctx.StorageRootEntry.Lock.EnterWriteLock();
+            trx.AddLockResource(ReadWriteLockType.Write, ctx.StorageRootEntry.Lock);
+
+            var rootPage = trx.ModifyPage(ctx.StorageRootEntry);
+            ref var header = ref rootPage.Header.Cast<StorageHeader>();
+
+            var last = header.LastPageNumber;
+            if (last + size > header.Length)
+            {
+                header.Length = storage.AddLength(size);
+                journal.WriteJournal(ctx.StorageRootEntry, header[nameof(header.Length)], header.Length);
             }
 
             header.LastPageNumber += size;
-            tx.WriteSetByte8JournalLog(ctx.RootEntry, header[nameof(header.LastPageNumber)], header.LastPageNumber);
+            journal.WriteJournal(ctx.StorageRootEntry, header[nameof(header.LastPageNumber)], header.LastPageNumber);
 
             return last;
         }

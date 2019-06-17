@@ -1,4 +1,4 @@
-﻿namespace Vicuna.Storage.Buffers
+﻿namespace Vicuna.Engine.Buffers
 {
     public class PageBufferPoolOptions
     {

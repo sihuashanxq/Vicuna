@@ -1,18 +1,18 @@
 ﻿using System.Runtime.CompilerServices;
 using System.Runtime.InteropServices;
 
-namespace Vicuna.Storage.Paging
+namespace Vicuna.Engine.Paging
 {
-    [StructLayout(LayoutKind.Explicit, Pack = 1, Size = SizeOf)]
-    public unsafe struct PageHeader : IPageHeader
+    [StructLayout(LayoutKind.Explicit, Pack = 1, Size = Constants.PageHeaderSize)]
+    public unsafe struct PageHeader
     {
-        public const int SizeOf = sizeof(PageHeaderFlags) + sizeof(int) + sizeof(long) + sizeof(long);
+        public const int SizeOf = Constants.PageHeaderSize;
 
         [FieldOffset(0)]
         public PageHeaderFlags Flags;
 
         [FieldOffset(1)]
-        public int StoreId;
+        public int StorageId;
 
         [FieldOffset(5)]
         public long PageNumber;
@@ -20,35 +20,7 @@ namespace Vicuna.Storage.Paging
         [FieldOffset(13)]
         public long LSN;
 
-        [MethodImpl(MethodImplOptions.AggressiveInlining)]
-        public long GetLSN()
-        {
-            return LSN;
-        }
-
-        [MethodImpl(MethodImplOptions.AggressiveInlining)]
-        public int GetStoreId()
-        {
-            return StoreId;
-        }
-
-        [MethodImpl(MethodImplOptions.AggressiveInlining)]
-        public long GetSizeOf()
-        {
-            return SizeOf;
-        }
-
-        [MethodImpl(MethodImplOptions.AggressiveInlining)]
-        public long GetPageNumber()
-        {
-            return PageNumber;
-        }
-
-        [MethodImpl(MethodImplOptions.AggressiveInlining)]
-        public PageHeaderFlags GetFlags()
-        {
-            return Flags;
-        }
-
+        [FieldOffset(21)]
+        public fixed byte Resvered[SizeOf - 21 - 1];
     }
 }

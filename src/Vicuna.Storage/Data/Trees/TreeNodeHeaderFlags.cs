@@ -1,11 +1,11 @@
-﻿namespace Vicuna.Storage.Data.Trees
+﻿namespace Vicuna.Engine.Data.Trees
 {
     public enum TreeNodeHeaderFlags : byte
     {
         Data = 1,
 
-        DataRef = 2,
+        DataNoneTrx = 2,
 
-        PageRef = 3
+        PageRefrence = 3
     }
 }

@@ -1,6 +1,6 @@
 ﻿using System.Runtime.InteropServices;
 
-namespace Vicuna.Storage.Data.Trees
+namespace Vicuna.Engine.Data.Trees
 {
     [StructLayout(LayoutKind.Explicit, Pack = 1, Size = SizeOf)]
     public struct TreeNodeTransactionHeader

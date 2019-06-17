@@ -1,9 +1,9 @@
 ﻿using System;
 using System.Collections.Generic;
 using System.Threading;
-using Vicuna.Storage.Paging;
+using Vicuna.Engine.Paging;
 
-namespace Vicuna.Storage.Buffers
+namespace Vicuna.Engine.Buffers
 {
     public class PageBufferPool
     {
@@ -17,7 +17,7 @@ namespace Vicuna.Storage.Buffers
 
         public Dictionary<PagePosition, PageBufferEntry> Hashes { get; }
 
-        public IPageManager PageManager { get; }
+        public PageManager PageManager { get; }
 
         public PageBufferPool(PageBufferPoolOptions options)
         {
@@ -33,7 +33,12 @@ namespace Vicuna.Storage.Buffers
             Flush.AddFirst(entry);
         }
 
-        public PageBufferEntry GetBufferEntry(PagePosition pos, PageBufferPoolFetchMode mode)
+        public PageBufferEntry GetBufferEntry(int storeId, long pageNumber, PageBufferPeekFlags flags = PageBufferPeekFlags.None)
+        {
+            return GetBufferEntry(new PagePosition(storeId, pageNumber), flags);
+        }
+
+        public PageBufferEntry GetBufferEntry(PagePosition pos, PageBufferPeekFlags mode)
         {
             var findEntry = GetHashPageBufferEntry(pos);
             if (findEntry == null)
@@ -46,12 +51,10 @@ namespace Vicuna.Storage.Buffers
                 return findEntry;
             }
 
-            if (!mode.HasFlag(PageBufferPoolFetchMode.NoFlushLRU))
+            if (!mode.HasFlag(PageBufferPeekFlags.NoneMoveLRU))
             {
                 LRU.MoveToFirst(findEntry);
             }
-
-            findEntry.LastTicks = DateTime.UtcNow.Ticks;
 
             return findEntry;
         }
@@ -61,9 +64,9 @@ namespace Vicuna.Storage.Buffers
             return Hashes.TryGetValue(pos, out var entry) ? entry : null;
         }
 
-        private PageBufferEntry GetStorePageBufferEntry(PagePosition pos, PageBufferPoolFetchMode mode)
+        private PageBufferEntry GetStorePageBufferEntry(PagePosition pos, PageBufferPeekFlags mode)
         {
-            if (mode.HasFlag(PageBufferPoolFetchMode.JustBufferPool))
+            if (mode.HasFlag(PageBufferPeekFlags.NoneReading))
             {
                 return null;
             }

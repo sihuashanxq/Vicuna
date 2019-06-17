@@ -1,11 +1,11 @@
 ﻿using System.Runtime.CompilerServices;
 using System.Runtime.InteropServices;
-using Vicuna.Storage.Paging;
+using Vicuna.Engine.Paging;
 
-namespace Vicuna.Storage.Data.Trees
+namespace Vicuna.Engine.Data.Trees
 {
     [StructLayout(LayoutKind.Explicit, Pack = 1, Size = SizeOf)]
-    public unsafe struct TreePageHeader : IPageHeader
+    public unsafe struct TreePageHeader 
     {
         internal const int SizeOf = 96;
 
@@ -46,36 +46,9 @@ namespace Vicuna.Storage.Data.Trees
         public TreeNodeFlags NodeFlags;
 
         [FieldOffset(47)]
-        public fixed byte Reserved[SizeOf - 47 - 1];
+        public long LastTransactionId;
 
-        [MethodImpl(MethodImplOptions.AggressiveInlining)]
-        public long GetLSN()
-        {
-            return LSN;
-        }
-
-        [MethodImpl(MethodImplOptions.AggressiveInlining)]
-        public long GetSizeOf()
-        {
-            return SizeOf;
-        }
-
-        [MethodImpl(MethodImplOptions.AggressiveInlining)]
-        public int GetStoreId()
-        {
-            return StoreId;
-        }
-
-        [MethodImpl(MethodImplOptions.AggressiveInlining)]
-        public long GetPageNumber()
-        {
-            return PageNumber;
-        }
-
-        [MethodImpl(MethodImplOptions.AggressiveInlining)]
-        public PageHeaderFlags GetFlags()
-        {
-            return Flags;
-        }
+        [FieldOffset(55)]
+        public fixed byte Reserved[SizeOf - 55 - 1];
     }
 }

@@ -1,43 +1,31 @@
-﻿using Vicuna.Storage.Paging;
-using System.Threading;
-using System;
+﻿using Vicuna.Engine.Paging;
+using Vicuna.Engine.Locking;
 
-namespace Vicuna.Storage.Buffers
+namespace Vicuna.Engine.Buffers
 {
     public class PageBufferEntry
     {
+        public long Refs;
+
         public Page Page;
 
         public long OldLSN;
 
         public long NewLSN;
 
-        public long LastTicks;
-
-        public long ReferenceCount;
-
         public PageBufferEntry Prev;
 
         public PageBufferEntry Next;
 
-        public PageBufferEntryState State;
+        public PageBufferState State;
 
-        public PageBufferEntryIOState IOState;
+        public readonly ReadWriteLock Lock;
 
-        public readonly ReaderWriterLockSlim Mutex;
-
-        public PageBufferEntry(Page page, PageBufferEntryState? state, PageBufferEntryIOState? ioState)
+        public PageBufferEntry(Page page, PageBufferState state)
         {
             Page = page;
-            State = state ?? PageBufferEntryState.Clean;
-            IOState = ioState ?? PageBufferEntryIOState.None;
-            LastTicks = DateTime.UtcNow.Ticks;
-            Mutex = new ReaderWriterLockSlim(LockRecursionPolicy.NoRecursion);
-        }
-
-        public IDisposable EnterLock(LockMode mode)
-        {
-            return MutexContext.Create(Mutex, mode);
+            State = state;
+            Lock = new ReadWriteLock(this);
         }
 
         public override int GetHashCode()

@@ -1,4 +1,4 @@
-﻿namespace Vicuna.Storage.Paging
+﻿namespace Vicuna.Engine.Paging
 {
     public interface IPageFreeHandler
     {

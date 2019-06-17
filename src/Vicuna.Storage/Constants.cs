@@ -1,8 +1,12 @@
-﻿namespace Vicuna.Storage
+﻿namespace Vicuna.Engine
 {
     public static class Constants
     {
-        public const int PageSize = 16 * 1024;
+        public const int KB = 1024;
+
+        public const int MB = 1024 * KB;
+
+        public const int PageSize = 16 * KB;
 
         public const int PageTailSize = 8;
 

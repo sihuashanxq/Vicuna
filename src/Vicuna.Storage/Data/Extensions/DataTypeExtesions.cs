@@ -1,8 +1,8 @@
-﻿namespace Vicuna.Storage.Data.Extensions
+﻿namespace Vicuna.Engine.Data.Extensions
 {
     public static class DataTypeExtesions
     {
-        public static bool IsPrimitive(this DataType dataType)
+        public static bool IsNumeric(this DataType dataType)
         {
             switch (dataType)
             {

@@ -1,8 +1,8 @@
 ﻿using System;
 using System.Runtime.CompilerServices;
-using Vicuna.Storage.Data.Extensions;
+using Vicuna.Engine.Data.Extensions;
 
-namespace Vicuna.Storage.Data
+namespace Vicuna.Engine.Data
 {
     public unsafe class BytesEncodingComparer
     {
@@ -16,55 +16,58 @@ namespace Vicuna.Storage.Data
                 var v = 0;
                 var t1 = (DataType)(s1[i++] & DataTypeConstants.DataTypeMask);
                 var t2 = (DataType)(s2[n++] & DataTypeConstants.DataTypeMask);
-                if (t1 != t2 && (!t1.IsPrimitive() || !t2.IsPrimitive()))
+                if (t1 != t2 && (!t1.IsNumeric() || !t2.IsNumeric()))
                 {
                     return t1 - t2;
                 }
 
                 switch (t1)
                 {
+                    case DataType.Null:
+                        v = 0;
+                        break;
                     case DataType.Char:
-                        v = ComparePrimitive(s1.ToChar(i), s2, ref n, t2);
+                        v = CompareNumeric(s1.ToChar(i), s2, ref n, t2);
                         i += sizeof(char);
                         break;
                     case DataType.Byte:
-                        v = ComparePrimitive(s1[i], s2, ref n, t2);
+                        v = CompareNumeric(s1[i], s2, ref n, t2);
                         i += sizeof(byte);
                         break;
                     case DataType.Int16:
-                        v = ComparePrimitive(s1.ToInt16(i), s2, ref n, t2);
+                        v = CompareNumeric(s1.ToInt16(i), s2, ref n, t2);
                         i += sizeof(short);
                         break;
                     case DataType.Int32:
-                        v = ComparePrimitive(s1.ToInt32(i), s2, ref n, t2);
+                        v = CompareNumeric(s1.ToInt32(i), s2, ref n, t2);
                         i += sizeof(int);
                         break;
                     case DataType.Int64:
-                        v = ComparePrimitive(s1.ToInt64(i), s2, ref n, t2);
+                        v = CompareNumeric(s1.ToInt64(i), s2, ref n, t2);
                         i += sizeof(long);
                         break;
                     case DataType.UInt16:
-                        v = ComparePrimitive(s1.ToUInt16(i), s2, ref n, t2);
+                        v = CompareNumeric(s1.ToUInt16(i), s2, ref n, t2);
                         i += sizeof(ushort);
                         break;
                     case DataType.UInt32:
-                        v = ComparePrimitive(s1.ToUInt32(i), s2, ref n, t2);
+                        v = CompareNumeric(s1.ToUInt32(i), s2, ref n, t2);
                         i += sizeof(uint);
                         break;
                     case DataType.UInt64:
-                        v = ComparePrimitive(s1.ToUInt64(i), s2, ref n, t2);
+                        v = CompareNumeric(s1.ToUInt64(i), s2, ref n, t2);
                         i += sizeof(ulong);
                         break;
                     case DataType.Single:
-                        v = ComparePrimitive(s1.ToSingle(i), s2, ref n, t2);
+                        v = CompareNumeric(s1.ToSingle(i), s2, ref n, t2);
                         i += sizeof(float);
                         break;
                     case DataType.Double:
-                        v = ComparePrimitive(s1.ToDouble(i), s2, ref n, t2);
+                        v = CompareNumeric(s1.ToDouble(i), s2, ref n, t2);
                         i += sizeof(double);
                         break;
                     case DataType.Boolean:
-                        v = ComparePrimitive(s1.ToBoolean(i) ? 1 : 0, s2, ref n, t2);
+                        v = CompareNumeric(s1.ToBoolean(i) ? 1 : 0, s2, ref n, t2);
                         i += sizeof(bool);
                         break;
                     case DataType.DateTime:
@@ -107,7 +110,7 @@ namespace Vicuna.Storage.Data
             }
         }
 
-        private static int ComparePrimitive(long comparable, Span<byte> dest, ref int index, DataType type)
+        private static int CompareNumeric(long comparable, Span<byte> dest, ref int index, DataType type)
         {
             var i = index;
 
@@ -151,7 +154,7 @@ namespace Vicuna.Storage.Data
             }
         }
 
-        private static int ComparePrimitive(ulong comparable, Span<byte> dest, ref int index, DataType type)
+        private static int CompareNumeric(ulong comparable, Span<byte> dest, ref int index, DataType type)
         {
             var i = index;
 
@@ -195,7 +198,7 @@ namespace Vicuna.Storage.Data
             }
         }
 
-        private static int ComparePrimitive(double comparable, Span<byte> dest, ref int index, DataType type)
+        private static int CompareNumeric(double comparable, Span<byte> dest, ref int index, DataType type)
         {
             var i = index;
 

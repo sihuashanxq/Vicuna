@@ -1,4 +1,4 @@
-﻿namespace Vicuna.Storage.Data
+﻿namespace Vicuna.Engine.Data
 {
     public static class DataTypeConstants
     {

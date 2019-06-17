@@ -1,6 +1,6 @@
-﻿namespace Vicuna.Storage.Journal
+﻿namespace Vicuna.Engine.Journal
 {
-    public enum JournalFlags
+    public enum JournalType
     {
         SetBytes = 1,
 

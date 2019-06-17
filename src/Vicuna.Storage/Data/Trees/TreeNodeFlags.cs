@@ -1,6 +1,6 @@
 ﻿using System;
 
-namespace Vicuna.Storage.Data.Trees
+namespace Vicuna.Engine.Data.Trees
 {
     [Flags]
     public enum TreeNodeFlags : byte

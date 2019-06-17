@@ -1,6 +1,6 @@
 ﻿using System;
 
-namespace Vicuna.Storage.Utils
+namespace Vicuna.Engine.Utils
 {
     public unsafe static class ByteConverter
     {

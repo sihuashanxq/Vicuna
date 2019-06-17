@@ -1,4 +1,4 @@
-﻿namespace Vicuna.Storage.Data.Tables
+﻿namespace Vicuna.Engine.Data.Tables
 {
     public class TableSchmea
     {
