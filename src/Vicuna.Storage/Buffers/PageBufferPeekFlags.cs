@@ -9,8 +9,6 @@ namespace Vicuna.Engine.Buffers
 
         NoneMoveLRU = 1,
 
-        NoneWaiting = 2,
-
-        NoneReading = 4,
+        NoneWaitReading = 2
     }
 }

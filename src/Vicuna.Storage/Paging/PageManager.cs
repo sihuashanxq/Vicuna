@@ -115,16 +115,16 @@ namespace Vicuna.Engine.Paging
 
             //enter lock and hold it
             ctx.StorageRootEntry.Lock.EnterWriteLock();
-            trx.AddLockResource(ReadWriteLockType.Write, ctx.StorageRootEntry.Lock);
+            trx.PushLockWaitForRelease(ReadWriteLockType.Write, ctx.StorageRootEntry.Lock);
 
             var rootPage = trx.ModifyPage(ctx.StorageRootEntry);
             ref var header = ref rootPage.Header.Cast<StorageHeader>();
 
             var last = header.LastPageNumber;
-            if (last + size > header.Length)
+            if (last + size > header.StorageLength)
             {
-                header.Length = storage.AddLength(size);
-                journal.WriteJournal(ctx.StorageRootEntry, header[nameof(header.Length)], header.Length);
+                header.StorageLength = storage.AddLength(size);
+                journal.WriteJournal(ctx.StorageRootEntry, header[nameof(header.StorageLength)], header.StorageLength);
             }
 
             header.LastPageNumber += size;

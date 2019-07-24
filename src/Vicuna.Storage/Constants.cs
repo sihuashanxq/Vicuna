@@ -11,5 +11,7 @@
         public const int PageTailSize = 8;
 
         public const int PageHeaderSize = 96;
+
+        public const int PageBodySize = PageSize - PageHeaderSize - PageTailSize;
     }
 }

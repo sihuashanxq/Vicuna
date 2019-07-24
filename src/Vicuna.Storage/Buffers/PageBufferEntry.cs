@@ -5,13 +5,16 @@ namespace Vicuna.Engine.Buffers
 {
     public class PageBufferEntry
     {
-        public long Refs;
-
         public Page Page;
 
         public long OldLSN;
 
         public long NewLSN;
+
+        /// <summary>
+        /// 引用计数
+        /// </summary>
+        public long Count;
 
         public PageBufferEntry Prev;
 
@@ -19,11 +22,12 @@ namespace Vicuna.Engine.Buffers
 
         public PageBufferState State;
 
+        public PagePosition Position;
+
         public readonly ReadWriteLock Lock;
 
-        public PageBufferEntry(Page page, PageBufferState state)
+        public PageBufferEntry(PageBufferState state)
         {
-            Page = page;
             State = state;
             Lock = new ReadWriteLock(this);
         }

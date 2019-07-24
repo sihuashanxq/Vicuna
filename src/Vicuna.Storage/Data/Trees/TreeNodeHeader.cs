@@ -32,7 +32,7 @@ namespace Vicuna.Engine.Data.Trees
             {
                 case TreeNodeHeaderFlags.Data:
                     return (ushort)(SizeOf + SlotSize + KeySize + DataSize + TreeNodeTransactionHeader.SizeOf);
-                case TreeNodeHeaderFlags.DataNoneTrx:
+                case TreeNodeHeaderFlags.DataRefrence:
                     return (ushort)(SizeOf + SlotSize + KeySize + DataSize);
                 default:
                     return (ushort)(SizeOf + SlotSize + KeySize);

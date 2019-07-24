@@ -5,6 +5,11 @@ namespace Vicuna.Engine.Transactions
 {
     public class LowLevelTransactionJournal
     {
+        public void Clear()
+        {
+
+        }
+
         public void WriteJournal(PageBufferEntry buffer, ushort offset, int value)
         {
 

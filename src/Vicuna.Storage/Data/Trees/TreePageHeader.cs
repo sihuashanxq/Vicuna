@@ -22,7 +22,7 @@ namespace Vicuna.Engine.Data.Trees
         public long LSN;
 
         [FieldOffset(21)]
-        public byte Depth;
+        public byte Level;
 
         [FieldOffset(22)]
         public long PrevPageNumber;

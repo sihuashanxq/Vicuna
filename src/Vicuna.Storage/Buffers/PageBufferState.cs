@@ -6,6 +6,6 @@
 
         Dirty,
 
-        Removed
+        NoneLoading
     }
 }
