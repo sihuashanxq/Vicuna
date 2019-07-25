@@ -7,14 +7,11 @@ namespace Vicuna.Engine.Buffers
     {
         public Page Page;
 
+        public long Count;
+
         public long OldLSN;
 
         public long NewLSN;
-
-        /// <summary>
-        /// 引用计数
-        /// </summary>
-        public long Count;
 
         public PageBufferEntry Prev;
 
@@ -24,12 +21,14 @@ namespace Vicuna.Engine.Buffers
 
         public PagePosition Position;
 
+        public LatchEntry Latch { get; }
+
         public readonly ReadWriteLock Lock;
 
         public PageBufferEntry(PageBufferState state)
         {
             State = state;
-            Lock = new ReadWriteLock(this);
+            Latch = new LatchEntry(this);
         }
 
         public override int GetHashCode()

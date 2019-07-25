@@ -115,7 +115,7 @@ namespace Vicuna.Engine.Paging
 
             //enter lock and hold it
             ctx.StorageRootEntry.Lock.EnterWriteLock();
-            trx.PushLockWaitForRelease(ReadWriteLockType.Write, ctx.StorageRootEntry.Lock);
+            trx.AddLockReleaser(ReadWriteLockType.Write, ctx.StorageRootEntry.Lock);
 
             var rootPage = trx.ModifyPage(ctx.StorageRootEntry);
             ref var header = ref rootPage.Header.Cast<StorageHeader>();

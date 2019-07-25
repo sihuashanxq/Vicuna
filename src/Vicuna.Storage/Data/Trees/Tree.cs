@@ -2,6 +2,9 @@
 using Vicuna.Engine.Paging;
 using Vicuna.Engine.Transactions;
 using Vicuna.Engine.Buffers;
+using System.Collections;
+using Vicuna.Engine.Locking;
+using System.Collections.Generic;
 
 namespace Vicuna.Engine.Data.Trees
 {
@@ -40,32 +43,29 @@ namespace Vicuna.Engine.Data.Trees
                 level = int.MaxValue;
             }
 
-            using (var trans = tx.CopyNew())
+            var entry = GetRootEntry(tx);
+            if (entry == null)
             {
-                var entry = GetRootEntry(tx);
-                if (entry == null)
+                throw new InvalidOperationException($"can't find the tree's root page :{Root}");
+            }
+
+            var latchs = new Stack<LatchReleaserEntry>();
+            var cursor = new TreePageCursor(entry.Page, TreeNodeFetchMode.LessThanOrEqual);
+
+            latchs.Push(entry.Latch.EnterRead());
+
+            for (; ; )
+            {
+                if (cursor.Level == level || cursor.IsLeaf)
                 {
-                    throw new InvalidOperationException($"can't find the tree's root page :{Root}");
+                    return tx.Buffers.GetEntry(cursor.Current.Position);
                 }
 
-                entry.Lock.EnterReadLock();
-                trans.PushLockWaitForRelease(ReadWriteLockType.Read, entry.Lock);
-
-                var cursor = new TreePageCursor(entry.Page, TreeNodeFetchMode.LessThanOrEqual);
-
-                for (; ; )
-                {
-                    if (cursor.Level == level || cursor.IsLeaf)
-                    {
-                        return trans.Buffers.GetEntry(cursor.Current.Position);
-                    }
-
-                    cursor = GetKeyPageCursor(trans, cursor, key, TreeNodeFetchMode.LessThanOrEqual);
-                }
+                cursor = GetPageCursor(tx, cursor, key, TreeNodeFetchMode.LessThanOrEqual);
             }
         }
 
-        private TreePageCursor GetKeyPageCursor(LowLevelTransaction tx, TreePageCursor cursor, Span<byte> key, TreeNodeFetchMode mode)
+        private TreePageCursor GetPageCursor(LowLevelTransaction tx, TreePageCursor cursor, Span<byte> key, TreeNodeFetchMode mode)
         {
             if (cursor.IsLeaf)
             {
@@ -81,13 +81,13 @@ namespace Vicuna.Engine.Data.Trees
                 throw new InvalidOperationException($"get next level page failed!");
             }
 
-            var nextLevelPage = tx.GetPage(Root.StorageId, pageNumber);
-            if (nextLevelPage != null)
+            var nextPage = tx.GetPage(Root.StorageId, pageNumber);
+            if (nextPage != null)
             {
-                return new TreePageCursor(nextLevelPage, mode);
+                return new TreePageCursor(nextPage, mode);
             }
 
-            throw new NullReferenceException(nameof(nextLevelPage));
+            throw new NullReferenceException(nameof(nextPage));
         }
     }
 

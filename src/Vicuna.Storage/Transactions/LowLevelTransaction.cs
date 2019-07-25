@@ -8,38 +8,26 @@ namespace Vicuna.Engine.Transactions
 {
     public class LowLevelTransaction : IDisposable
     {
-        private readonly long _id;
+        internal long Id { get; }
 
-        private readonly bool _writeable;
+        internal PageBufferPool Buffers { get; }
 
-        private readonly PageBufferPool _bufferPool;
+        internal LowLevelTransactionJournal Journal { get; }
 
-        private readonly LowLevelTransactionJournal _journal;
+        internal Stack<LatchReleaserEntry> Latches { get; }
 
-        private readonly Dictionary<PagePosition, ModifyBufferCache> _modifidBuffers;
+        internal Dictionary<object, LatchReleaserEntry> LatchTargets { get; }
 
-        private readonly Stack<(ReadWriteLockType, IReadWriteLock)> _txLocksWaitForRelease;
+        internal Dictionary<PagePosition, TempBufferCache> Modifies { get; }
 
-        public long Id => _id;
-
-        public PageBufferPool Buffers => _bufferPool;
-
-        public LowLevelTransactionJournal Journal => _journal;
-
-        internal Dictionary<PagePosition, ModifyBufferCache> ModifidBuffers => _modifidBuffers;
-
-        public LowLevelTransaction CopyNew()
+        public LowLevelTransaction(long id, PageBufferPool buffers)
         {
-            return new LowLevelTransaction(Id, Buffers);
-        }
-
-        public LowLevelTransaction(long id, PageBufferPool bufferPool)
-        {
-            _id = id;
-            _bufferPool = bufferPool;
-            _journal = new LowLevelTransactionJournal();
-            _modifidBuffers = new Dictionary<PagePosition, ModifyBufferCache>();
-            _txLocksWaitForRelease = new Stack<(ReadWriteLockType, IReadWriteLock)>();
+            Id = id;
+            Journal = new LowLevelTransactionJournal();
+            Latches = new Stack<LatchReleaserEntry>();
+            Buffers = buffers ?? throw new ArgumentNullException(nameof(buffers));
+            Modifies = new Dictionary<PagePosition, TempBufferCache>();
+            LatchTargets = new Dictionary<object, LatchReleaserEntry>();
         }
 
         public Page GetPage(int id, long number)
@@ -49,7 +37,7 @@ namespace Vicuna.Engine.Transactions
 
         public Page GetPage(PagePosition pos)
         {
-            var temporary = GetModifiedTemporaryPage(pos);
+            var temporary = GetModifiedPage(pos);
             if (temporary != null)
             {
                 return temporary;
@@ -66,21 +54,18 @@ namespace Vicuna.Engine.Transactions
 
         public Page GetPage(PageBufferEntry buffer)
         {
-            var temporary = GetModifiedTemporaryPage(buffer.Position);
+            var temporary = GetModifiedPage(buffer.Position);
             if (temporary != null)
             {
                 return null;
             }
-
-            buffer.Lock.EnterReadLock();
-            PushLockWaitForRelease(ReadWriteLockType.Read, buffer.Lock);
 
             return buffer.Page;
         }
 
         public Page ModifyPage(PagePosition pos)
         {
-            var temporary = GetModifiedTemporaryPage(pos);
+            var temporary = GetModifiedPage(pos);
             if (temporary != null)
             {
                 return temporary;
@@ -95,29 +80,29 @@ namespace Vicuna.Engine.Transactions
             buffer.Lock.EnterWriteLock();
             temporary = buffer.Page.CreateCopy();
 
-            ModifidBuffers[buffer.Position] = new ModifyBufferCache(buffer, temporary);
-            PushLockWaitForRelease(ReadWriteLockType.Write, buffer.Lock);
+            Modifies[buffer.Position] = new TempBufferCache(buffer, temporary);
+            AddLockReleaser(ReadWriteLockType.Write, buffer.Lock);
 
             return temporary;
         }
 
         public Page ModifyPage(PageBufferEntry buffer)
         {
-            if (!ModifidBuffers.TryGetValue(buffer.Position, out var cache))
+            if (!Modifies.TryGetValue(buffer.Position, out var cache))
             {
                 buffer.Lock.EnterWriteLock();
-                cache = new ModifyBufferCache(buffer, buffer.Page.CreateCopy());
+                cache = new TempBufferCache(buffer, buffer.Page.CreateCopy());
 
-                ModifidBuffers[buffer.Position] = cache;
-                PushLockWaitForRelease(ReadWriteLockType.Write, buffer.Lock);
+                Modifies[buffer.Position] = cache;
+                AddLockReleaser(ReadWriteLockType.Write, buffer.Lock);
             }
 
             return cache.Temporary;
         }
 
-        public Page GetModifiedTemporaryPage(PagePosition pos)
+        public Page GetModifiedPage(PagePosition pos)
         {
-            if (ModifidBuffers.TryGetValue(pos, out var cache))
+            if (Modifies.TryGetValue(pos, out var cache))
             {
                 return cache.Temporary;
             }
@@ -125,78 +110,76 @@ namespace Vicuna.Engine.Transactions
             return null;
         }
 
-        public void PushLockWaitForRelease(ReadWriteLockType lockType, IReadWriteLock readWriteLock)
+        public void AddLatch(LatchReleaserEntry entry)
         {
-            _txLocksWaitForRelease.Push((lockType, readWriteLock));
+            if (LatchTargets.TryGetValue(entry.Latch.Target, out var old))
+            {
+                throw new InvalidOperationException($"latch at target:{old.Latch.Target} has already exists!");
+            }
+
+            Latches.Push(entry);
+            LatchTargets.Add(entry.Latch.Target, entry);
         }
 
         public void Reset()
         {
-            _journal.Clear();
-            _modifidBuffers.Clear();
-            _txLocksWaitForRelease.Clear();
+            Journal.Clear();
+            Modifies.Clear();
+            Latches.Clear();
+            LatchTargets.Clear();
         }
 
         public void Commit()
         {
-            CopyTemporaryToPages();
-            ReleaseLockResources();
+            CopyTempToPages();
+            ReleaseLatches();
             Reset();
-        }
-
-        private void CopyTemporaryToPages()
-        {
-            foreach (var item in _modifidBuffers)
-            {
-                var page = item.Value.Buffer.Page;
-                var temporary = item.Value.Temporary;
-
-                temporary.CopyTo(page);
-            }
-        }
-
-        private void ReleaseLockResources()
-        {
-            lock (Buffers.SyncRoot)
-            {
-                while (_txLocksWaitForRelease.Count != 0)
-                {
-                    var (lockType, lockEntry) = _txLocksWaitForRelease.Pop();
-
-                    switch (lockType)
-                    {
-                        case ReadWriteLockType.Read:
-                            lockEntry.ExitReadLock();
-                            break;
-                        case ReadWriteLockType.Write:
-                            lockEntry.ExitWriteLock();
-                            break;
-                    }
-
-                    if (lockEntry.Target is PageBufferEntry entry)
-                    {
-                        entry.Count--;
-                    }
-                }
-            }
         }
 
         public void Dispose()
         {
-            throw new NotImplementedException();
+            Commit();
         }
 
-        internal struct ModifyBufferCache
+        private void CopyTempToPages()
         {
-            public Page Temporary;
-
-            public PageBufferEntry Buffer;
-
-            public ModifyBufferCache(PageBufferEntry buffer, Page temporary)
+            foreach (var item in Modifies)
             {
-                Buffer = buffer;
-                Temporary = temporary;
+                var page = item.Value.Buffer.Page;
+                var temp = item.Value.Temporary;
+
+                temp.CopyTo(page);
             }
+        }
+
+        private void ReleaseLatches()
+        {
+            lock (Buffers.SyncRoot)
+            {
+                while (Latches.Count != 0)
+                {
+                    var latch = Latches.Pop();
+                    if (latch.Latch.Target is PageBufferEntry entry)
+                    {
+                        entry.Count--;
+                    }
+
+                    latch.Dispose();
+                }
+            }
+        }
+    }
+
+    internal struct TempBufferCache
+    {
+        public Page Temporary;
+
+        public PageBufferEntry Buffer;
+
+        public TempBufferCache(PageBufferEntry buffer, Page temporary)
+        {
+            Buffer = buffer;
+            Temporary = temporary;
         }
     }
 }
