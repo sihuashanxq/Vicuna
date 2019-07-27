@@ -9,47 +9,47 @@ namespace Vicuna.Engine.Paging
     {
         public IPageFreeHandler FreeHandler { get; }
 
-        public Dictionary<int, Storage> Stroages { get; }
+        public Dictionary<int, File> Files { get; }
 
-        public PageManager(Dictionary<int, Storage> stroages, IPageFreeHandler handler)
+        public PageManager(Dictionary<int, File> stroages, IPageFreeHandler handler)
         {
-            Stroages = stroages ?? throw new ArgumentNullException(nameof(stroages));
+            Files = stroages ?? throw new ArgumentNullException(nameof(stroages));
             FreeHandler = handler ?? throw new ArgumentNullException(nameof(handler));
         }
 
-        protected virtual Storage GetStorage(int id)
+        protected virtual File GetFile(int id)
         {
-            return Stroages.TryGetValue(id, out var store) ? store : null;
+            return Files.TryGetValue(id, out var store) ? store : null;
         }
 
-        public virtual void SetPage(Page page)
+        public virtual void WritePage(Page page)
         {
             if (page == null)
             {
                 throw new ArgumentNullException(nameof(page));
             }
 
-            var position = page.Position;
-            var storage = GetStorage(position.StorageId);
-            if (storage == null)
+            var pos = page.Position;
+            var file = GetFile(pos.FileId);
+            if (file == null)
             {
-                throw new KeyNotFoundException($" the store can not be found,id:{position.StorageId}!");
+                throw new KeyNotFoundException($" the file can not be found,id:{pos.FileId}!");
             }
 
-            storage.Write(position.PageNumber, page.Data);
+            file.Write(pos.PageNumber, page.Data);
         }
 
-        public virtual Page GetPage(PagePosition pos)
+        public virtual Page ReadPage(PagePosition pos)
         {
-            var store = GetStorage(pos.StorageId);
-            if (store == null)
+            var file = GetFile(pos.FileId);
+            if (file == null)
             {
-                throw new KeyNotFoundException($" the store can not be found,id:{pos.StorageId}!");
+                throw new KeyNotFoundException($" the file can not be found,id:{pos.FileId}!");
             }
 
             var buffer = new byte[Constants.PageSize];
 
-            store.Read(pos.PageNumber, buffer);
+            file.Read(pos.PageNumber, buffer);
 
             return new Page(buffer);
         }
@@ -68,16 +68,16 @@ namespace Vicuna.Engine.Paging
         /// <returns></returns>
         public virtual PagePosition[] Allocate(ref AllocationContext ctx)
         {
-            var storage = GetStorage(ctx.StorageId);
+            var storage = GetFile(ctx.FileId);
             if (storage == null)
             {
-                throw new KeyNotFoundException($"the storage can not be found,id:{ctx.StorageId}!");
+                throw new KeyNotFoundException($"the storage can not be found,id:{ctx.FileId}!");
             }
 
             var index = 0;
             var positions = new PagePosition[ctx.Count];
 
-            if (ctx.Mode == AllocationMode.Normal)
+            if (ctx.Mode == AllocationMode.None)
             {
                 index = FreeHandler?.Allocate(ctx, positions) ?? 0;
             }
@@ -87,16 +87,16 @@ namespace Vicuna.Engine.Paging
                 return positions;
             }
 
-            var pageNumber = Allocate(storage, (ctx.Count - index) * Constants.PageSize, ref ctx);
-            if (pageNumber <= 0)
+            var first = Allocate(storage, (ctx.Count - index) * Constants.PageSize, ref ctx);
+            if (first <= 0)
             {
-                throw new InvalidOperationException($"failed to allocate pages ,store-id:{ctx.StorageId},count:{ctx.Count - index}");
+                throw new InvalidOperationException($"failed to allocate pages ,file-id:{ctx.FileId},count:{ctx.Count - index}");
             }
 
             for (var i = index; i < positions.Length; i++)
             {
-                positions[i] = new PagePosition(ctx.StorageId, pageNumber);
-                pageNumber += Constants.PageSize;
+                positions[i] = new PagePosition(ctx.FileId, first);
+                first += Constants.PageSize;
             }
 
             return positions;
@@ -108,27 +108,23 @@ namespace Vicuna.Engine.Paging
         /// <param name="size"></param>
         /// <param name="ctx"></param>
         /// <returns></returns>
-        private unsafe static long Allocate(Storage storage, long size, ref AllocationContext ctx)
+        private unsafe static long Allocate(File storage, long size, ref AllocationContext ctx)
         {
             var trx = ctx.Transaction;
             var journal = trx.Journal;
 
-            //enter lock and hold it
-            ctx.StorageRootEntry.Lock.EnterWriteLock();
-            trx.AddLockReleaser(ReadWriteLockType.Write, ctx.StorageRootEntry.Lock);
-
-            var rootPage = trx.ModifyPage(ctx.StorageRootEntry);
-            ref var header = ref rootPage.Header.Cast<StorageHeader>();
+            var root = trx.ModifyPage(ctx.RootBuffer);
+            ref var header = ref root.Header.Cast<FileHeader>();
 
             var last = header.LastPageNumber;
-            if (last + size > header.StorageLength)
+            if (last + size > header.FileLength)
             {
-                header.StorageLength = storage.AddLength(size);
-                journal.WriteJournal(ctx.StorageRootEntry, header[nameof(header.StorageLength)], header.StorageLength);
+                header.FileLength = storage.AddLength(size);
+                journal.WriteJournal(ctx.RootBuffer, header[nameof(header.FileLength)], header.FileLength);
             }
 
             header.LastPageNumber += size;
-            journal.WriteJournal(ctx.StorageRootEntry, header[nameof(header.LastPageNumber)], header.LastPageNumber);
+            journal.WriteJournal(ctx.RootBuffer, header[nameof(header.LastPageNumber)], header.LastPageNumber);
 
             return last;
         }

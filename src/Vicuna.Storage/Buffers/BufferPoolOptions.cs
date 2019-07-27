@@ -1,9 +1,7 @@
 ﻿namespace Vicuna.Engine.Buffers
 {
-    public class PageBufferPoolOptions
+    public class BufferPoolOptions
     {
-        public long Limit { get; set; }
-
         public long LRULimit { get; set; }
 
         public uint AsyncFlushCount { get; set; } = 32;

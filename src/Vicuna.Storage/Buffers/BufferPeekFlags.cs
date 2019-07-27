@@ -3,12 +3,12 @@
 namespace Vicuna.Engine.Buffers
 {
     [Flags]
-    public enum PageBufferPeekFlags : byte
+    public enum BufferPeekFlags : byte
     {
         None = 0,
 
-        NoneMoveLRU = 1,
+        KeepLRU = 1,
 
-        NoneWaitReading = 2
+        NoneWait = 2
     }
 }

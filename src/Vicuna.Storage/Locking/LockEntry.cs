@@ -2,7 +2,7 @@
 
 namespace Vicuna.Engine.Locking
 {
-    public abstract class LockEntry
+    public class LockEntry
     {
         public int Thread;
 

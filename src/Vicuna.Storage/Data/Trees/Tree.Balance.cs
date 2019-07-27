@@ -2,9 +2,9 @@
 using System.Collections.Generic;
 using System.Text;
 
-namespace Vicuna.Engine.Locking
+namespace Vicuna.Engine.Data.Trees
 {
-    public class LockDocumentEntry : LockEntry
+    public partial class Tree
     {
     }
 }

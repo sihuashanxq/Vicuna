@@ -2,10 +2,8 @@
 {
     public enum LatchFlags : byte
     {
-        None,
+        Read = 0,
 
-        Read,
-
-        Write
+        Write = 1
     }
 }

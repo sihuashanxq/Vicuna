@@ -1,10 +1,10 @@
 ﻿using System;
 
-namespace Vicuna.Engine.Utils
+namespace Vicuna.Engine.Extensions
 {
     public unsafe static class ByteConverter
     {
-        public static byte[] GetBytes(params long[] args)
+        public static byte[] ToByteArray(this long[] args)
         {
             if (args == null)
             {

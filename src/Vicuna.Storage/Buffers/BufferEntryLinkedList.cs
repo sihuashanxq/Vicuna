@@ -2,21 +2,21 @@
 
 namespace Vicuna.Engine.Buffers
 {
-    public class PageBufferEntryLinkedList
+    public class BufferEntryLinkedList
     {
         private int _count;
 
         private int _version;
 
-        private PageBufferEntry _first;
+        private BufferEntry _first;
 
         public int Count => _count;
 
-        public PageBufferEntry First => _first;
+        public BufferEntry First => _first;
 
-        public PageBufferEntry Last => _first?.Prev;
+        public BufferEntry Last => _first?.Prev;
 
-        public void AddFirst(PageBufferEntry entry)
+        public void AddFirst(BufferEntry entry)
         {
             if (_first == null)
             {
@@ -32,7 +32,7 @@ namespace Vicuna.Engine.Buffers
             }
         }
 
-        public void AddLast(PageBufferEntry entry)
+        public void AddLast(BufferEntry entry)
         {
             if (_first == null)
             {
@@ -64,7 +64,7 @@ namespace Vicuna.Engine.Buffers
             }
         }
 
-        public void MoveToFirst(PageBufferEntry entry)
+        public void MoveToFirst(BufferEntry entry)
         {
             if (entry == null)
             {
@@ -75,7 +75,7 @@ namespace Vicuna.Engine.Buffers
             AddFirst(entry);
         }
 
-        public void MoveToLast(PageBufferEntry entry)
+        public void MoveToLast(BufferEntry entry)
         {
             if (entry == null)
             {
@@ -86,7 +86,7 @@ namespace Vicuna.Engine.Buffers
             AddLast(entry);
         }
 
-        private void InsertBefore(PageBufferEntry beforeEntry, PageBufferEntry entry)
+        private void InsertBefore(BufferEntry beforeEntry, BufferEntry entry)
         {
             if (entry == null)
             {
@@ -107,7 +107,7 @@ namespace Vicuna.Engine.Buffers
             beforeEntry.Prev = entry;
         }
 
-        private void Remove(PageBufferEntry entry)
+        private void Remove(BufferEntry entry)
         {
             if (entry.Prev == null &&
                 entry.Next == null &&

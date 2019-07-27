@@ -8,21 +8,21 @@
         /// <summary>
         /// >
         /// </summary>
-        MoreThan,
+        Gt,
 
         /// <summary>
         /// >=
         /// </summary>
-        MoreThanOrEqual,
+        Gte,
 
         /// <summary>
         /// <
         /// </summary>
-        LessThan,
+        Lt,
 
         /// <summary>
         /// <=
         /// </summary>
-        LessThanOrEqual
+        Lte
     }
 }

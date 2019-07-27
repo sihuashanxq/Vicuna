@@ -7,12 +7,12 @@ namespace Vicuna.Engine.Paging
     {
         public uint Count { get; set; }
 
-        public int StorageId { get; set; }
+        public int FileId { get; set; }
 
         public AllocationMode Mode { get; set; }
 
-        public LowLevelTransaction Transaction { get; set; }
+        public BufferEntry RootBuffer { get; set; }
 
-        public PageBufferEntry StorageRootEntry { get; set; }
+        public LowLevelTransaction Transaction { get; set; }
     }
 }

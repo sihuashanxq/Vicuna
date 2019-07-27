@@ -11,10 +11,10 @@ namespace Vicuna.Engine.Paging
         public const int SizeOf = sizeof(int) + sizeof(long);
 
         /// <summary>
-        /// the storage's id which is page in
+        /// the file's id which is page in
         /// </summary>
         [FieldOffset(0)]
-        public int StorageId;
+        public int FileId;
 
         /// <summary>
         /// the page's number in storage
@@ -22,31 +22,27 @@ namespace Vicuna.Engine.Paging
         [FieldOffset(4)]
         public long PageNumber;
 
-        public PagePosition(int storageId, long pageNumber)
+        public PagePosition(int fileId, long pageNumber)
         {
-            StorageId = storageId;
+            FileId = fileId;
             PageNumber = pageNumber;
         }
 
         public override int GetHashCode()
         {
-            var hashCode = StorageId;
-
-            hashCode += hashCode * 31 ^ PageNumber.GetHashCode();
-
-            return hashCode;
+            return FileId + (FileId * 31 ^ PageNumber.GetHashCode());
         }
 
         public override bool Equals(object obj)
         {
-            if (base.Equals(obj))
+            if (obj is null)
             {
-                return true;
+                return false;
             }
 
             if (obj is PagePosition pos)
             {
-                return pos.StorageId == StorageId && pos.PageNumber == PageNumber;
+                return FileId == pos.FileId && PageNumber == pos.PageNumber;
             }
 
             return false;
@@ -64,7 +60,7 @@ namespace Vicuna.Engine.Paging
 
         public override string ToString()
         {
-            return $"{StorageId}:{PageNumber}";
+            return $"{FileId}:{PageNumber}";
         }
     }
 }

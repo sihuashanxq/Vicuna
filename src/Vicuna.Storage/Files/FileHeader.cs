@@ -5,7 +5,7 @@ using System.Runtime.InteropServices;
 namespace Vicuna.Engine.Storages
 {
     [StructLayout(LayoutKind.Explicit, Pack = 1, Size = SizeOf)]
-    public unsafe struct StorageHeader 
+    public unsafe struct FileHeader 
     {
         public const int SizeOf = Constants.PageHeaderSize;
 
@@ -19,7 +19,7 @@ namespace Vicuna.Engine.Storages
         public long LSN;
 
         [FieldOffset(13)]
-        public long StorageLength;
+        public long FileLength;
 
         [FieldOffset(21)]
         public long LastPageNumber;
@@ -40,7 +40,7 @@ namespace Vicuna.Engine.Storages
                         return 1;
                     case nameof(LSN):
                         return 5;
-                    case nameof(StorageLength):
+                    case nameof(FileLength):
                         return 13;
                     case nameof(LastPageNumber):
                         return 21;

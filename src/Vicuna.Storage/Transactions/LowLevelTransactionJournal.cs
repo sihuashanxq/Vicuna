@@ -10,17 +10,17 @@ namespace Vicuna.Engine.Transactions
 
         }
 
-        public void WriteJournal(PageBufferEntry buffer, ushort offset, int value)
+        public void WriteJournal(BufferEntry buffer, ushort offset, int value)
         {
 
         }
 
-        public void WriteJournal(PageBufferEntry buffer, ushort offset, long value)
+        public void WriteJournal(BufferEntry buffer, ushort offset, long value)
         {
 
         }
 
-        public void WriteJournal(PageBufferEntry buffer, ushort offset, short value)
+        public void WriteJournal(BufferEntry buffer, ushort offset, short value)
         {
 
         }

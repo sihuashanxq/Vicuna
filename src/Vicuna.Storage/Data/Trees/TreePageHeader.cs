@@ -5,7 +5,7 @@ using Vicuna.Engine.Paging;
 namespace Vicuna.Engine.Data.Trees
 {
     [StructLayout(LayoutKind.Explicit, Pack = 1, Size = SizeOf)]
-    public unsafe struct TreePageHeader 
+    public unsafe struct TreePageHeader
     {
         internal const int SizeOf = 96;
 
@@ -13,7 +13,7 @@ namespace Vicuna.Engine.Data.Trees
         public PageHeaderFlags Flags;
 
         [FieldOffset(1)]
-        public int StoreId;
+        public int FileId;
 
         [FieldOffset(5)]
         public long PageNumber;
@@ -22,33 +22,30 @@ namespace Vicuna.Engine.Data.Trees
         public long LSN;
 
         [FieldOffset(21)]
-        public byte Level;
-
-        [FieldOffset(22)]
         public long PrevPageNumber;
 
-        [FieldOffset(30)]
+        [FieldOffset(29)]
         public long NextPageNumber;
 
-        [FieldOffset(38)]
+        [FieldOffset(37)]
         public ushort Low;
 
-        [FieldOffset(40)]
+        [FieldOffset(39)]
         public ushort Upper;
 
-        [FieldOffset(42)]
+        [FieldOffset(41)]
         public ushort Count;
 
-        [FieldOffset(44)]
+        [FieldOffset(43)]
         public ushort UsedSize;
 
-        [FieldOffset(46)]
+        [FieldOffset(45)]
         public TreeNodeFlags NodeFlags;
 
-        [FieldOffset(47)]
+        [FieldOffset(46)]
         public long LastTransactionId;
 
-        [FieldOffset(55)]
-        public fixed byte Reserved[SizeOf - 55 - 1];
+        [FieldOffset(54)]
+        public fixed byte Reserved[SizeOf - 53 - 1];
     }
 }

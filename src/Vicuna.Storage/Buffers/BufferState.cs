@@ -1,6 +1,6 @@
 ﻿namespace Vicuna.Engine.Buffers
 {
-    public enum PageBufferState
+    public enum BufferState
     {
         Clean,
 

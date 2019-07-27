@@ -3,7 +3,7 @@ using Vicuna.Engine.Locking;
 
 namespace Vicuna.Engine.Buffers
 {
-    public class PageBufferEntry
+    public class BufferEntry
     {
         public Page Page;
 
@@ -13,32 +13,37 @@ namespace Vicuna.Engine.Buffers
 
         public long NewLSN;
 
-        public PageBufferEntry Prev;
+        public BufferEntry Prev;
 
-        public PageBufferEntry Next;
+        public BufferEntry Next;
 
-        public PageBufferState State;
+        public BufferState State;
 
         public PagePosition Position;
 
-        public LatchEntry Latch { get; }
+        public readonly LatchEntry Latch;
 
-        public readonly ReadWriteLock Lock;
-
-        public PageBufferEntry(PageBufferState state)
+        public BufferEntry(BufferState state)
         {
             State = state;
             Latch = new LatchEntry(this);
         }
 
+        public BufferEntry(BufferState state, PagePosition pos)
+        {
+            State = state;
+            Latch = new LatchEntry(this);
+            Position = pos;
+        }
+
         public override int GetHashCode()
         {
-            return Page.Position.GetHashCode();
+            return Position.GetHashCode();
         }
 
         public override bool Equals(object obj)
         {
-            return Page.Position.Equals(obj);
+            return Position.Equals(obj);
         }
     }
 }

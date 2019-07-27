@@ -17,7 +17,17 @@
   </PropertyGroup>
 
   <ItemGroup>
+    <Compile Remove="Data\Trees\Tree.Delete.cs" />
+    <Compile Remove="Data\Trees\Tree.Query.cs" />
+  </ItemGroup>
+
+  <ItemGroup>
     <Folder Include="Data\Tables\" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <None Include="Data\Trees\Tree.Delete.cs" />
+    <None Include="Data\Trees\Tree.Query.cs" />
   </ItemGroup>
 
   <ItemGroup>

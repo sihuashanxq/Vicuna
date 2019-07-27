@@ -1,32 +1,28 @@
 ﻿using System;
-using System.Diagnostics;
 using System.Runtime.CompilerServices;
 using Vicuna.Engine.Paging;
-using Vicuna.Engine.Transactions;
 
 namespace Vicuna.Engine.Data.Trees
 {
-    public struct TreePageCursor
+    public class TreePageCursor
     {
-        public Page Current { get; set; }
+        public int Level;
 
-        public int LastMatch { get; set; }
+        public Page Current;
 
-        public int LastMatchIndex { get; set; }
+        public int LastMatch;
 
-        public TreeNodeFetchMode Mode { get; set; }
+        public int LastMatchIndex;
 
-        public TreePageCursor(Page page, TreeNodeFetchMode mode)
+        public TreeNodeFetchMode Mode;
+
+        public TreePageCursor(Page page, int level, TreeNodeFetchMode mode)
         {
             Mode = mode;
+            Level = level;
             Current = page;
             LastMatch = 0;
             LastMatchIndex = -1;
-        }
-
-        public int Level
-        {
-            get => TreeHeader.Level;
         }
 
         public bool IsLeaf
@@ -41,12 +37,12 @@ namespace Vicuna.Engine.Data.Trees
 
         public Span<byte> FirstKey
         {
-            get => GetNodeEntryKey(0);
+            get => GetNodeKey(0);
         }
 
         public Span<byte> LastKey
         {
-            get => GetNodeEntryKey(TreeHeader.Count - (IsLeaf ? 1 : 2));
+            get => GetNodeKey(TreeHeader.Count - (IsLeaf ? 1 : 2));
         }
 
         public ref TreePageHeader TreeHeader
@@ -54,14 +50,14 @@ namespace Vicuna.Engine.Data.Trees
             get => ref Current.Header.Cast<TreePageHeader>();
         }
 
-        public void Search(Span<byte> key)
+        public TreePageCursor Search(Span<byte> key)
         {
             var count = IsLeaf ? TreeHeader.Count : TreeHeader.Count - 1;
             if (count <= 0)
             {
                 LastMatch = 0;
                 LastMatchIndex = 0;
-                return;
+                return this;
             }
 
             //>last
@@ -69,7 +65,7 @@ namespace Vicuna.Engine.Data.Trees
             {
                 LastMatch = IsBranch ? 0 : 1;
                 LastMatchIndex = IsBranch ? count : count - 1;
-                return;
+                return this;
             }
 
             //<first
@@ -77,42 +73,46 @@ namespace Vicuna.Engine.Data.Trees
             {
                 LastMatch = IsBranch ? 0 : -1;
                 LastMatchIndex = 0;
-                return;
+                return this;
             }
 
             BinarySearch(key, 0, count - 1);
+            return this;
         }
 
-        public void BinarySearch(Span<byte> key, int first, int last)
+        public void BinarySearch(Span<byte> giveKey, int first, int last)
         {
-            while (first < last - 1)
+            var end = last;
+            var start = first;
+
+            while (first < last)
             {
                 var mid = first + (last - first) / 2;
-                var nodeKey = GetNodeEntryKey(mid);
-                var flag = CompareNodeKeys(key, nodeKey);
+                var key = GetNodeKey(mid);
+                var flag = CompareNodeKeys(giveKey, key);
                 if (flag > 0)
                 {
-                    first = mid;
+                    first = mid + 1;
                 }
                 else if (flag < 0)
                 {
-                    last = mid;
+                    last = mid - 1;
                 }
                 else
                 {
                     switch (Mode)
                     {
-                        case TreeNodeFetchMode.MoreThan:
-                            first = mid;
+                        case TreeNodeFetchMode.Gt:
+                            first = mid + 1;
                             break;
-                        case TreeNodeFetchMode.LessThan:
-                            last = mid;
+                        case TreeNodeFetchMode.Lt:
+                            last = mid - 1;
                             break;
-                        case TreeNodeFetchMode.MoreThanOrEqual:
-                            last = mid;
+                        case TreeNodeFetchMode.Gte:
+                            last = mid - 1;
                             break;
                         case TreeNodeFetchMode.LessThanOrEqual:
-                            first = mid;
+                            first = mid + 1;
                             break;
                     }
                 }
@@ -123,38 +123,37 @@ namespace Vicuna.Engine.Data.Trees
 
             switch (Mode)
             {
-                case TreeNodeFetchMode.MoreThan:
-                case TreeNodeFetchMode.MoreThanOrEqual:
+                case TreeNodeFetchMode.Gt:
+                    LastMatchIndex = first;
+                    break;
+                case TreeNodeFetchMode.Lt:
                     LastMatchIndex = last;
                     break;
+                case TreeNodeFetchMode.Gte:
+                    LastMatchIndex = LastMatch == 0 && last < end ? last + 1 : last;
+                    break;
                 default:
-                    LastMatchIndex = first;
+                    LastMatchIndex = LastMatch == 0 && first > start ? first - 1 : first;
                     break;
             }
 
             if (IsBranch)
             {
-                Debug.Assert(Mode == TreeNodeFetchMode.LessThanOrEqual);
+                //Debug.Assert(Mode == TreeNodeFetchMode.LessThanOrEqual);
                 LastMatch = 0;
                 LastMatchIndex += 1;
             }
             else
             {
-                LastMatch = CompareNodeKeys(GetNodeEntryKey(LastMatchIndex), key);
+                LastMatch = CompareNodeKeys(giveKey, GetNodeKey(LastMatchIndex));
             }
         }
 
-        public bool TryGetLastMatchedPageNumber(out long pageNumber)
+        public PagePosition GetLastMatchedPage()
         {
-            if (LastMatchIndex < 0)
-            {
-                pageNumber = -1;
-                return false;
-            }
+            ref var node = ref GetNodeHeaderWithIndex(LastMatchIndex);
 
-            var ptr = GetNodeEntryPointer(LastMatchIndex);
-            pageNumber = GetNodeEntryHeader(ptr).PageNumber;
-            return true;
+            return new PagePosition(Current.Position.FileId, node.PageNumber);
         }
 
         [MethodImpl(MethodImplOptions.AggressiveInlining)]
@@ -186,7 +185,7 @@ namespace Vicuna.Engine.Data.Trees
             if (index <= header.Count - 1)
             {
                 //move slots
-                var start = GetNodeEntrySlot(index);
+                var start = GetNodeSlot(index);
                 var len = header.Low - start;
 
                 var to = Current.Slice(start + sizeof(ushort), len);
@@ -217,19 +216,31 @@ namespace Vicuna.Engine.Data.Trees
         }
 
         [MethodImpl(MethodImplOptions.AggressiveInlining)]
-        public ref TreeNodeHeader GetNodeEntryHeader(ushort pointer)
+        public ref TreeNodeHeader GetNodeHeader(ushort pointer)
         {
             return ref Current.Read<TreeNodeHeader>(pointer, TreeNodeHeader.SizeOf);
         }
 
         [MethodImpl(MethodImplOptions.AggressiveInlining)]
-        public ushort GetNodeEntrySlot(int index)
+        public ref TreeNodeHeader GetNodeHeaderWithIndex(int index)
+        {
+            var ptr = GetNodePointer(LastMatchIndex);
+            if (ptr > Constants.PageSize - Constants.PageTailSize || ptr < Constants.PageHeaderSize)
+            {
+                throw new PageCorruptedException(Current);
+            }
+
+            return ref Current.Read<TreeNodeHeader>(ptr, TreeNodeHeader.SizeOf);
+        }
+
+        [MethodImpl(MethodImplOptions.AggressiveInlining)]
+        public ushort GetNodeSlot(int index)
         {
             return (ushort)(index * sizeof(ushort) + Constants.PageHeaderSize);
         }
 
         [MethodImpl(MethodImplOptions.AggressiveInlining)]
-        public bool TryGetNodeEntry(int index, out TreeNodeEntry entry)
+        public bool TryGetNode(int index, out TreeNodeEntry entry)
         {
             var count = TreeHeader.Count;
             if (count == 0)
@@ -243,10 +254,10 @@ namespace Vicuna.Engine.Data.Trees
                 throw new ArgumentOutOfRangeException(nameof(index));
             }
 
-            var ptr = GetNodeEntryPointer(index);
+            var ptr = GetNodePointer(index);
             var size = (int)TreeNodeHeader.SizeOf;
 
-            ref var node = ref GetNodeEntryHeader(ptr);
+            ref var node = ref GetNodeHeader(ptr);
             switch (node.NodeFlags)
             {
                 case TreeNodeHeaderFlags.Data:
@@ -267,7 +278,7 @@ namespace Vicuna.Engine.Data.Trees
 
             entry = new TreeNodeEntry()
             {
-                Slot = GetNodeEntrySlot(index),
+                Slot = GetNodeSlot(index),
                 Data = Current.Slice(ptr, size),
                 Index = (short)index,
                 Position = ptr
@@ -277,31 +288,7 @@ namespace Vicuna.Engine.Data.Trees
         }
 
         [MethodImpl(MethodImplOptions.AggressiveInlining)]
-        public ushort GetNodeEntryPointer(int index)
-        {
-            if (index >= TreeHeader.Count || index < 0)
-            {
-                throw new ArgumentOutOfRangeException(nameof(index));
-            }
-
-            var slot = GetNodeEntrySlot(index);
-            if (slot < TreeNodeHeader.SizeOf ||
-                slot > Constants.PageSize - PageTailer.SizeOf)
-            {
-                throw new PageCorruptedException(Current);
-            }
-
-            var ptr = Current.Read<ushort>(slot);
-            if (ptr < 0 || ptr > Constants.PageSize - Constants.PageTailSize)
-            {
-                throw new PageCorruptedException(Current);
-            }
-
-            return ptr;
-        }
-
-        [MethodImpl(MethodImplOptions.AggressiveInlining)]
-        public Span<byte> GetNodeEntryKey(int index)
+        public Span<byte> GetNodeKey(int index)
         {
             if (TreeHeader.Count == 0)
             {
@@ -313,10 +300,10 @@ namespace Vicuna.Engine.Data.Trees
                 throw new ArgumentOutOfRangeException(nameof(index));
             }
 
-            var ptr = GetNodeEntryPointer(index);
+            var ptr = GetNodePointer(index);
             var pos = ptr + TreeNodeHeader.SizeOf;
 
-            ref var node = ref GetNodeEntryHeader(ptr);
+            ref var node = ref GetNodeHeader(ptr);
             if (pos + node.KeySize > Constants.PageSize - Constants.PageTailSize)
             {
                 throw new PageCorruptedException(Current);
@@ -326,7 +313,7 @@ namespace Vicuna.Engine.Data.Trees
         }
 
         [MethodImpl(MethodImplOptions.AggressiveInlining)]
-        public Span<byte> GetNodeEntryValue(int index)
+        public Span<byte> GetNodeData(int index)
         {
             if (TreeHeader.Count == 0)
             {
@@ -338,10 +325,10 @@ namespace Vicuna.Engine.Data.Trees
                 throw new ArgumentOutOfRangeException(nameof(index));
             }
 
-            var ptr = GetNodeEntryPointer(index);
+            var ptr = GetNodePointer(index);
             var pos = 0;
 
-            ref var node = ref GetNodeEntryHeader(ptr);
+            ref var node = ref GetNodeHeader(ptr);
             switch (node.NodeFlags)
             {
                 case TreeNodeHeaderFlags.Data:
@@ -362,6 +349,30 @@ namespace Vicuna.Engine.Data.Trees
             return Current.Slice(pos, node.DataSize);
         }
 
+        [MethodImpl(MethodImplOptions.AggressiveInlining)]
+        public ushort GetNodePointer(int index)
+        {
+            if (index >= TreeHeader.Count || index < 0)
+            {
+                throw new ArgumentOutOfRangeException(nameof(index));
+            }
+
+            var slot = GetNodeSlot(index);
+            if (slot < TreeNodeHeader.SizeOf ||
+                slot > Constants.PageSize - PageTailer.SizeOf)
+            {
+                throw new IndexOutOfRangeException($"index:{index},slot:{slot},page:{Current.Position}");
+            }
+
+            var ptr = Current.Read<ushort>(slot);
+            if (ptr < 0 || ptr > Constants.PageSize - Constants.PageTailSize)
+            {
+                throw new PageCorruptedException(Current);
+            }
+
+            return ptr;
+        }
+
         /// <summary>
         /// </summary>
         private void Compact()
@@ -376,9 +387,9 @@ namespace Vicuna.Engine.Data.Trees
 
             for (var i = 0; i < count; i++)
             {
-                var slot = GetNodeEntrySlot(i);
-                var ptr = GetNodeEntryPointer(i);
-                ref var node = ref GetNodeEntryHeader(ptr);
+                var slot = GetNodeSlot(i);
+                var ptr = GetNodePointer(i);
+                ref var node = ref GetNodeHeader(ptr);
                 var size = node.GetSize() - sizeof(ushort);
 
                 index -= size;
