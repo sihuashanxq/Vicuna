@@ -61,7 +61,7 @@ namespace Vicuna.Engine.Data.Trees
             }
 
             //>last
-            if (CompareNodeKeys(key, LastKey) > 0)
+            if (CompareKey(key, LastKey) > 0)
             {
                 LastMatch = IsBranch ? 0 : 1;
                 LastMatchIndex = IsBranch ? count : count - 1;
@@ -69,7 +69,7 @@ namespace Vicuna.Engine.Data.Trees
             }
 
             //<first
-            if (CompareNodeKeys(key, FirstKey) < 0)
+            if (CompareKey(key, FirstKey) < 0)
             {
                 LastMatch = IsBranch ? 0 : -1;
                 LastMatchIndex = 0;
@@ -89,7 +89,7 @@ namespace Vicuna.Engine.Data.Trees
             {
                 var mid = first + (last - first) / 2;
                 var key = GetNodeKey(mid);
-                var flag = CompareNodeKeys(giveKey, key);
+                var flag = CompareKey(giveKey, key);
                 if (flag > 0)
                 {
                     first = mid + 1;
@@ -111,7 +111,7 @@ namespace Vicuna.Engine.Data.Trees
                         case TreeNodeFetchMode.Gte:
                             last = mid - 1;
                             break;
-                        case TreeNodeFetchMode.LessThanOrEqual:
+                        case TreeNodeFetchMode.Lte:
                             first = mid + 1;
                             break;
                     }
@@ -145,13 +145,13 @@ namespace Vicuna.Engine.Data.Trees
             }
             else
             {
-                LastMatch = CompareNodeKeys(giveKey, GetNodeKey(LastMatchIndex));
+                LastMatch = CompareKey(giveKey, GetNodeKey(LastMatchIndex));
             }
         }
 
         public PagePosition GetLastMatchedPage()
         {
-            ref var node = ref GetNodeHeaderWithIndex(LastMatchIndex);
+            ref var node = ref GetNodeHeader(LastMatchIndex);
 
             return new PagePosition(Current.Position.FileId, node.PageNumber);
         }
@@ -216,13 +216,13 @@ namespace Vicuna.Engine.Data.Trees
         }
 
         [MethodImpl(MethodImplOptions.AggressiveInlining)]
-        public ref TreeNodeHeader GetNodeHeader(ushort pointer)
+        public ref TreeNodeHeader GetNodeHeader(ushort pos)
         {
-            return ref Current.Read<TreeNodeHeader>(pointer, TreeNodeHeader.SizeOf);
+            return ref Current.Read<TreeNodeHeader>(pos, TreeNodeHeader.SizeOf);
         }
 
         [MethodImpl(MethodImplOptions.AggressiveInlining)]
-        public ref TreeNodeHeader GetNodeHeaderWithIndex(int index)
+        public ref TreeNodeHeader GetNodeHeader(int index)
         {
             var ptr = GetNodePointer(LastMatchIndex);
             if (ptr > Constants.PageSize - Constants.PageTailSize || ptr < Constants.PageHeaderSize)
@@ -230,7 +230,7 @@ namespace Vicuna.Engine.Data.Trees
                 throw new PageCorruptedException(Current);
             }
 
-            return ref Current.Read<TreeNodeHeader>(ptr, TreeNodeHeader.SizeOf);
+            return ref GetNodeHeader(ptr);
         }
 
         [MethodImpl(MethodImplOptions.AggressiveInlining)]
@@ -409,7 +409,7 @@ namespace Vicuna.Engine.Data.Trees
         }
 
         [MethodImpl(MethodImplOptions.AggressiveInlining)]
-        private static int CompareNodeKeys(Span<byte> giveKey, Span<byte> nodeKey)
+        private static int CompareKey(Span<byte> giveKey, Span<byte> nodeKey)
         {
             return BytesEncodingComparer.Compare(giveKey, nodeKey, StringCompareMode.IgnoreCase);
         }

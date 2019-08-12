@@ -1,7 +1,6 @@
 ﻿using System;
 using System.Diagnostics;
 using Vicuna.Engine.Locking;
-using Vicuna.Engine.Paging;
 using Vicuna.Engine.Transactions;
 
 namespace Vicuna.Engine.Data.Trees
@@ -19,7 +18,7 @@ namespace Vicuna.Engine.Data.Trees
     {
         public DBOperationFlags AddClusterEntry(LowLevelTransaction tx, Span<byte> key, Span<byte> value)
         {
-            var cursor = GetCursorForQuery(tx, key, -1, true);
+            var cursor = GetCursorForUpdate(tx, key, -1);
             if (cursor.LastMatch != 0 || !cursor.IsLeaf || !Index.IsUnique)
             {
                 return AddClusterEntry(tx, cursor, key, value);
@@ -36,7 +35,7 @@ namespace Vicuna.Engine.Data.Trees
                 throw new InvalidOperationException($"duplicate key for {key.ToString()}");
             }
 
-            return DBOperationFlags.Success;
+            return AddClusterEntry(tx, cursor, key, value);
         }
 
         /// <summary>
@@ -56,14 +55,14 @@ namespace Vicuna.Engine.Data.Trees
         {
             if (Index.IsClustered)
             {
-                return tx.LockManager.LockClustered(tx, Index, cursor.Current.Position, cursor.LastMatchIndex, flags);
+                return tx.LockManager.Lock(tx, Index, cursor.Current.Position, cursor.LastMatchIndex, flags);
             }
 
             var clusterdKey = cursor.GetNodeData(cursor.LastMatchIndex);
-#if (DEBUG)
+
             Debug.Assert(clusterdKey.Length == 0);
-#endif
-            return tx.LockManager.LockUniversal(tx, Index, clusterdKey, flags);
+
+            return tx.LockManager.Lock(tx, Index, clusterdKey, flags);
         }
 
         protected bool IsUniqueDuplicateKey(LowLevelTransaction tx, TreePageCursor cursor)
@@ -73,7 +72,7 @@ namespace Vicuna.Engine.Data.Trees
                 return false;
             }
 
-            return !cursor.GetNodeHeaderWithIndex(cursor.LastMatchIndex).IsDeleted;
+            return !cursor.GetNodeHeader(cursor.LastMatchIndex).IsDeleted;
         }
     }
 }

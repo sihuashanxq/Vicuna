@@ -14,6 +14,8 @@ namespace Vicuna.Engine.Transactions
 
         internal LockManager LockManager { get; }
 
+        internal Transaction Transaction { get; }
+
         internal Stack<LatchReleaserEntry> Latches { get; }
 
         internal LowLevelTransactionJournal Journal { get; }

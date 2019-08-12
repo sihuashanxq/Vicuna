@@ -1,11 +1,10 @@
 ﻿using System;
-using Vicuna.Engine.Paging;
 
 namespace Vicuna.Engine.Paging
 {
     public class PageCorruptedException : Exception
     {
-        public PageCorruptedException(Page page) : base($"page data corrupted,{page}!")
+        public PageCorruptedException(Page page) : base($"the page at {page.Position} was corrupted!")
         {
 
         }
