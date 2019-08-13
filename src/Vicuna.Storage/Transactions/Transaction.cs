@@ -1,5 +1,6 @@
 ﻿using System.Collections.Generic;
 using System.Threading;
+using Vicuna.Engine.Data.Tables;
 using Vicuna.Engine.Locking;
 
 namespace Vicuna.Engine.Transactions
@@ -8,13 +9,13 @@ namespace Vicuna.Engine.Transactions
     {
         public LockEntry WaitLock { get; set; }
 
-        public LinkedList<LockEntry> Locks { get; }
+        public LinkedList<LockEntry> RecLocks { get; }
 
         public ManualResetEventSlim WaitEvent { get; }
 
         public Transaction()
         {
-            WaitEvent = new ManualResetEventSlim(true);
+            WaitEvent = new ManualResetEventSlim(false);
         }
 
         public long Id { get; }

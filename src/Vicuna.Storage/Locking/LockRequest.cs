@@ -1,5 +1,6 @@
 ﻿using Vicuna.Engine.Data.Tables;
 using Vicuna.Engine.Paging;
+using Vicuna.Engine.Transactions;
 
 namespace Vicuna.Engine.Locking
 {
