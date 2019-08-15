@@ -18,15 +18,13 @@ namespace Vicuna.Engine.Locking
 
         public PagePosition Page;
 
-        public LockEntry WaitEntry;
-
         public Transaction Transaction;
 
         public LinkedListNode<LockEntry> TNode;
 
         public LinkedListNode<LockEntry> GNode;
 
-        public int Count => IsTable ? 1 : Bits.Length * sizeof(byte);
+        public int Count => IsTable ? 1 : Bits.Length * 8;
 
         public bool IsTable => Flags.HasFlag(LockFlags.Table);
 
@@ -51,7 +49,7 @@ namespace Vicuna.Engine.Locking
             Bits[index / 8] |= (byte)(bit << index % 8);
         }
 
-        public int GetMarkedIndex()
+        public int GetFirstMarkedIndex()
         {
             for (var i = 0; i < Bits.Length; i++)
             {
@@ -60,11 +58,11 @@ namespace Vicuna.Engine.Locking
                     continue;
                 }
 
-                for (var n = 0; n < sizeof(byte); n++)
+                for (var n = 0; n < 8; n++)
                 {
                     if ((Bits[i] & (1 << n)) != 0)
                     {
-                        return i * sizeof(byte) + n;
+                        return i * 8 + n;
                     }
                 }
             }

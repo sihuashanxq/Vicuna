@@ -4,7 +4,7 @@ namespace Vicuna.Engine.Data.Trees
 {
     public enum TableIndexType
     {
-        Clustered,
+        Cluster,
 
         Unique,
 
@@ -19,7 +19,7 @@ namespace Vicuna.Engine.Data.Trees
 
         public bool IsUnique => Type != TableIndexType.Universale;
 
-        public bool IsClustered => Type == TableIndexType.Clustered;
+        public bool IsCluster => Type == TableIndexType.Cluster;
     }
 
     public partial class Tree

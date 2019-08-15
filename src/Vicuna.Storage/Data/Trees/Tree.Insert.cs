@@ -11,7 +11,9 @@ namespace Vicuna.Engine.Data.Trees
 
         Success,
 
-        Waitting
+        Waitting,
+
+        DeadLock
     }
 
     public partial class Tree
@@ -19,15 +21,18 @@ namespace Vicuna.Engine.Data.Trees
         public DBOperationFlags AddClusterEntry(LowLevelTransaction tx, Span<byte> key, Span<byte> value)
         {
             var cursor = GetCursorForUpdate(tx, key, -1);
-            if (cursor.LastMatch != 0 || !cursor.IsLeaf || !Index.IsUnique)
+            if (cursor.LastMatch != 0 || cursor.IsBranch || Index.IsUnique == false)
             {
                 return AddClusterEntry(tx, cursor, key, value);
             }
 
-            var lockFlags = LockNodeEntry(tx, cursor, LockFlags.Exclusive | LockFlags.Document);
-            if (lockFlags.IsWaitting())
+            if (Index.IsCluster)
             {
-                return DBOperationFlags.Waitting;
+                var flags = LockRec(tx, cursor, LockFlags.Exclusive | LockFlags.Document);
+                if (flags != DBOperationFlags.Success)
+                {
+                    return flags;
+                }
             }
 
             if (IsUniqueDuplicateKey(tx, cursor))
@@ -51,28 +56,30 @@ namespace Vicuna.Engine.Data.Trees
             return DBOperationFlags.Success;
         }
 
-        protected LockFlags LockNodeEntry(LowLevelTransaction tx, TreePageCursor cursor, LockFlags flags)
+        /// <summary>
+        /// </summary>
+        /// <param name="tx"></param>
+        /// <param name="cursor"></param>
+        /// <param name="flags"></param>
+        /// <returns></returns>
+        protected DBOperationFlags LockRec(LowLevelTransaction tx, TreePageCursor cursor, LockFlags flags)
         {
-            if (Index.IsClustered)
+            var req = new LockRequest()
             {
-                return tx.LockManager.Lock(tx, Index, cursor.Current.Position, cursor.LastMatchIndex, flags);
-            }
+                Flags = flags,
+                Index = null,
+                Position = cursor.Current.Position,
+                Transaction = tx.Transaction,
+                RecordSlot = cursor.LastMatchIndex,
+                RecordCount = cursor.TreeHeader.Count,
+            };
 
-            var clusterdKey = cursor.GetNodeData(cursor.LastMatchIndex);
-
-            Debug.Assert(clusterdKey.Length == 0);
-
-            return tx.LockManager.Lock(tx, Index, clusterdKey, flags);
+            return EngineEnviorment.LockManager.LockRec(ref req);
         }
 
         protected bool IsUniqueDuplicateKey(LowLevelTransaction tx, TreePageCursor cursor)
         {
-            if (Index.IsUnique)
-            {
-                return false;
-            }
-
-            return !cursor.GetNodeHeader(cursor.LastMatchIndex).IsDeleted;
+            return Index.IsUnique && !cursor.GetNodeHeader(cursor.LastMatchIndex).IsDeleted;
         }
     }
 }

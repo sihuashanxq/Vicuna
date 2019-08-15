@@ -30,7 +30,7 @@ namespace Vicuna.Engine.Paging
 
         public override int GetHashCode()
         {
-            return FileId + (FileId * 31 ^ PageNumber.GetHashCode());
+            return FileId * 31 ^ PageNumber.GetHashCode();
         }
 
         public override bool Equals(object obj)

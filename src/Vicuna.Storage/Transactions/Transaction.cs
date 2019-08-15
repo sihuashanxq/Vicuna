@@ -7,7 +7,13 @@ namespace Vicuna.Engine.Transactions
 {
     public class Transaction
     {
+        public long Id { get; set; }
+
+        public byte DeadFlags { get; set; }
+
         public LockEntry WaitLock { get; set; }
+
+        public TransactionState State { get; set; }
 
         public LinkedList<LockEntry> RecLocks { get; }
 
@@ -15,10 +21,9 @@ namespace Vicuna.Engine.Transactions
 
         public Transaction()
         {
+            RecLocks = new LinkedList<LockEntry>();
             WaitEvent = new ManualResetEventSlim(false);
         }
-
-        public long Id { get; }
 
         public void Commit()
         {
@@ -29,5 +34,16 @@ namespace Vicuna.Engine.Transactions
         {
 
         }
+    }
+
+    public enum TransactionState
+    {
+        Running,
+
+        Waitting,
+
+        Rollback,
+
+        Commit
     }
 }
