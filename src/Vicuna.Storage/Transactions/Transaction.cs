@@ -15,13 +15,13 @@ namespace Vicuna.Engine.Transactions
 
         public TransactionState State { get; set; }
 
-        public LinkedList<LockEntry> RecLocks { get; }
+        public LinkedList<LockEntry> Locks { get; }
 
         public ManualResetEventSlim WaitEvent { get; }
 
         public Transaction()
         {
-            RecLocks = new LinkedList<LockEntry>();
+            Locks = new LinkedList<LockEntry>();
             WaitEvent = new ManualResetEventSlim(false);
         }
 
