@@ -1,6 +1,5 @@
 ﻿using System;
 using System.Collections.Generic;
-using System.Diagnostics;
 using System.Runtime.CompilerServices;
 using System.Threading;
 using Vicuna.Engine.Data.Tables;
@@ -12,26 +11,16 @@ namespace Vicuna.Engine.Locking
 {
     public class LockManager
     {
-        internal object SyncRoot { get; } = new object();
+        public object SyncRoot { get; } = new object();
 
-        internal Dictionary<Index, LinkedList<LockEntry>> TabLocks { get; }
+        public Dictionary<Index, LinkedList<LockEntry>> TabLocks { get; }
 
-        internal Dictionary<PagePosition, LinkedList<LockEntry>> RecLocks { get; set; }
+        public Dictionary<PagePosition, LinkedList<LockEntry>> RecLocks { get; set; }
 
         public LockManager()
         {
             TabLocks = new Dictionary<Index, LinkedList<LockEntry>>();
             RecLocks = new Dictionary<PagePosition, LinkedList<LockEntry>>();
-        }
-
-        /// <summary>
-        /// lock a record
-        /// </summary>
-        /// <param name="req"></param>
-        /// <returns></returns>
-        public DBOperationFlags LockRec(ref LockRequest req)
-        {
-            return LockRec(ref req, out var _);
         }
 
         /// <summary>
@@ -41,7 +30,111 @@ namespace Vicuna.Engine.Locking
         /// <returns></returns>
         public DBOperationFlags LockTab(ref LockRequest req)
         {
+            if (req.Flags.IsDocument())
+            {
+                throw new InvalidOperationException("err api invoke!");
+            }
+
             return LockTab(ref req, out var _);
+        }
+
+        /// <summary>
+        /// lock a record
+        /// </summary>
+        /// <param name="req"></param>
+        /// <returns></returns>
+        public DBOperationFlags LockRec(ref LockRequest req)
+        {
+            if (req.Flags.IsTable())
+            {
+                throw new InvalidOperationException("err api invoke!");
+            }
+
+            return LockRec(ref req, out var _);
+        }
+
+        public void MergeRecLock(PagePosition left, PagePosition right)
+        {
+            
+        }
+
+        public void SplitRecLock(PagePosition from, PagePosition to, int mid)
+        {
+            var removes = new List<LockEntry>();
+            var fromEntry = FindFirstRecLockEntry(from);
+            var list = new LinkedList<LockEntry>();
+
+            while (fromEntry != null)
+            {
+                var tx = fromEntry.Transaction;
+                var toEntry = SplitRecLock(fromEntry, to, mid);
+                if (toEntry == null)
+                {
+                    fromEntry = FindNextRecLockEntry(fromEntry);
+                    continue;
+                }
+
+                toEntry.TNode = tx.Locks.AddAfter(fromEntry.TNode, toEntry);
+                toEntry.GNode = list.AddLast(toEntry);
+
+                if (fromEntry.IsEmpty)
+                {
+                    removes.Add(fromEntry);
+                }
+
+                if (fromEntry.IsWaiting && fromEntry.IsEmpty)
+                {
+                    tx.WaitLock = toEntry;
+                }
+
+                fromEntry = FindNextRecLockEntry(fromEntry);
+            }
+
+            foreach (var entry in removes)
+            {
+                entry.TNode.List.Remove(entry.TNode);
+                entry.GNode.List.Remove(entry.GNode);
+            }
+
+            RecLocks[to] = list;
+        }
+
+        private unsafe LockEntry SplitRecLock(LockEntry fromEntry, PagePosition to, int mid)
+        {
+            if (fromEntry == null)
+            {
+                return null;
+            }
+
+            var count = fromEntry.Count - mid / 8 + 8;
+            var buffer = stackalloc byte[count];
+
+            fromEntry.CopyBitsTo(mid, buffer);
+            fromEntry.ResetBits(mid);
+
+            for (var i = 0; i < count; i++)
+            {
+                if (buffer[i] == 0)
+                {
+                    continue;
+                }
+
+                var toEntry = new LockEntry()
+                {
+                    Bits = new byte[count],
+                    Page = to,
+                    Flags = fromEntry.Flags,
+                    Index = fromEntry.Index,
+                    Thread = fromEntry.Thread,
+                    Transaction = fromEntry.Transaction
+                };
+
+                Unsafe.CopyBlock(ref toEntry.Bits[0], ref * buffer, (uint) count);
+
+                return toEntry;
+            }
+
+            return null;
         }
 
         /// <summary>
@@ -64,7 +157,7 @@ namespace Vicuna.Engine.Locking
                 return DBOperationFlags.Success;
             }
 
-            if (IsOthersHeldConflictRecLock(ref req))
+            if (IsOthersHeldOrWaitConflictRecLock(ref req))
             {
                 req.Flags |= LockFlags.Waiting;
                 return CreateRecLockForWait(ref req, out entry);
@@ -94,7 +187,7 @@ namespace Vicuna.Engine.Locking
                 return DBOperationFlags.Success;
             }
 
-            if (IsOthersHeldConflictTabLock(ref req))
+            if (IsOthersHeldOrWaitConflictTabLock(ref req))
             {
                 req.Flags |= LockFlags.Waiting;
                 return CreateTabLockForWait(ref req, out entry);
@@ -176,7 +269,7 @@ namespace Vicuna.Engine.Locking
         /// </summary>
         /// <param name="req"></param>
         /// <returns></returns>
-        private bool IsOthersHeldConflictRecLock(ref LockRequest req)
+        private bool IsOthersHeldOrWaitConflictRecLock(ref LockRequest req)
         {
             var locks = RecLocks.GetValueOrDefault(req.Position);
             if (locks == null)
@@ -187,8 +280,7 @@ namespace Vicuna.Engine.Locking
             for (var node = locks.First; node != null; node = node.Next)
             {
                 var lockEntry = node.Value;
-                if (lockEntry.IsWaiting ||
-                    lockEntry.Transaction == req.Transaction ||
+                if (lockEntry.Transaction == req.Transaction ||
                     lockEntry.GetBit(req.RecordSlot) == 0)
                 {
                     continue;
@@ -208,7 +300,7 @@ namespace Vicuna.Engine.Locking
         /// </summary>
         /// <param name="req"></param>
         /// <returns></returns>
-        private bool IsOthersHeldConflictTabLock(ref LockRequest req)
+        private bool IsOthersHeldOrWaitConflictTabLock(ref LockRequest req)
         {
             var locks = TabLocks.GetValueOrDefault(req.Index);
             if (locks == null)
@@ -219,8 +311,7 @@ namespace Vicuna.Engine.Locking
             for (var node = locks.First; node != null; node = node.Next)
             {
                 var lockEntry = node.Value;
-                if (lockEntry.IsWaiting ||
-                    lockEntry.Transaction == req.Transaction)
+                if (lockEntry.Transaction == req.Transaction)
                 {
                     continue;
                 }
@@ -244,7 +335,7 @@ namespace Vicuna.Engine.Locking
             if (!RecLocks.TryGetValue(req.Position, out var list))
             {
                 list = new LinkedList<LockEntry>();
-                RecLocks[req.Position] = list; ;
+                RecLocks[req.Position] = list;;
             }
 
             var tx = req.Transaction;
@@ -277,7 +368,7 @@ namespace Vicuna.Engine.Locking
             if (!TabLocks.TryGetValue(req.Index, out var list))
             {
                 list = new LinkedList<LockEntry>();
-                TabLocks[req.Index] = list; ;
+                TabLocks[req.Index] = list;;
             }
 
             var tx = req.Transaction;
@@ -431,7 +522,7 @@ namespace Vicuna.Engine.Locking
                 return true;
             }
 
-            var lockBit = entry.IsTable ? 0 : entry.GetFirstMarkedIndex();
+            var lockBit = entry.IsTable ? 0 : entry.GetFirstBitIndex();
             if (lockBit < 0)
             {
                 return false;
