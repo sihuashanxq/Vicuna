@@ -1,6 +1,8 @@
 ﻿using System;
 using System.Collections.Generic;
+using System.Linq;
 using System.Runtime.CompilerServices;
+using System.Text;
 using Vicuna.Engine.Data.Tables;
 using Vicuna.Engine.Paging;
 using Vicuna.Engine.Transactions;
@@ -70,13 +72,13 @@ namespace Vicuna.Engine.Locking
         [MethodImpl(MethodImplOptions.AggressiveInlining)]
         public byte GetBit(int index)
         {
-            return (byte) (Bits[index / 8] >> index % 8 & 1);
+            return (byte)(Bits[index >> 3] >> index % 8 & 1);
         }
 
         [MethodImpl(MethodImplOptions.AggressiveInlining)]
         public void SetBit(int index, byte bit)
         {
-            Bits[index / 8] |= (byte) (bit << index % 8);
+            Bits[index >> 3] |= (byte)(bit << index % 8);
         }
 
         [MethodImpl(MethodImplOptions.AggressiveInlining)]
@@ -93,7 +95,7 @@ namespace Vicuna.Engine.Locking
                 {
                     if ((Bits[i] & (1 << n)) != 0)
                     {
-                        return i * 8 + n;
+                        return (i << 3) + n;
                     }
                 }
             }
@@ -105,34 +107,45 @@ namespace Vicuna.Engine.Locking
         public void MoveBits(int index)
         {
             const byte Bit8Mask = 0x80;
-            const byte Bit7Mask = 0x7F;
 
-            var mid = index / 8;
-            var bit = Bits[mid] & Bit8Mask;
+            var mid = index >> 3;
+            var mod = index % 8;
+            var bit = (Bits[mid] & Bit8Mask) >> 7;
 
             for (var i = mid + 1; i < Bits.Length; i++)
             {
-                var top = Bits[i] & Bit8Mask;
+                var top = (Bits[i] & Bit8Mask) >> 7;
 
-                Bits[i] = (byte) (bit | (Bits[i] & Bit7Mask));
+                Bits[i] = (byte)(bit | (Bits[i] << 1));
 
                 bit = top;
             }
 
-            Bits[mid] = (byte) (Bits[mid] & (byte.MaxValue << (index % 8 + 1)) | Bits[mid] & (byte.MaxValue >>(8 - index % 8)));
+            Bits[mid] = (byte)(((Bits[mid] & byte.MaxValue << mod) << 1) | (Bits[mid] & (byte.MaxValue >> (8 - mod))));
         }
 
         [MethodImpl(MethodImplOptions.AggressiveInlining)]
         public void ResetBits(int index)
         {
-            var mid = index / 8;
-
-            for (var i = mid + 1; i < Bits.Length; i++)
+            var n = index / 8;
+            if (n >= Bits.Length)
             {
-                Bits[i] = 0;
+                return;
             }
 
-            Bits[mid] = (byte) (Bits[mid] & (byte.MaxValue >>(8 - index % 8)));
+            var m = index % 8;
+            if (m == 0)
+            {
+                Array.Clear(Bits, n, Bits.Length - n);
+                return;
+            }
+
+            if (n < Bits.Length - 1)
+            {
+                Array.Clear(Bits, n + 1, Bits.Length - n - 1);
+            }
+
+            Bits[n] = (byte)(Bits[n] & (byte.MaxValue >> (8 - m)));
         }
 
         [MethodImpl(MethodImplOptions.AggressiveInlining)]
@@ -142,29 +155,100 @@ namespace Vicuna.Engine.Locking
 
             Array.Copy(Bits, mid, bits, 0, Count - mid);
 
-            bits[0] = (byte) (bits[0] & (byte.MaxValue << (index % 8)));
-            Bits[mid] = (byte) (Bits[mid] & (byte.MaxValue >>(8 - index % 8)));
+            bits[0] = (byte)(bits[0] & (byte.MaxValue << (index % 8)));
+            Bits[mid] = (byte)(Bits[mid] & (byte.MaxValue >> (8 - index % 8)));
         }
 
         [MethodImpl(MethodImplOptions.AggressiveInlining)]
-        public unsafe void CopyBitsTo(int index, byte * bits)
+        public unsafe void CopyBitsTo(int index, byte* bits)
         {
             var mid = index / 8;
 
-            Unsafe.CopyBlock(ref Bits[mid], ref * bits, (uint) (Count - mid));
+            Unsafe.CopyBlock(ref Bits[mid], ref *bits, (uint)(Count - mid));
 
-            bits[0] = (byte) (bits[0] & (byte.MaxValue << (index % 8)));
-            Bits[mid] = (byte) (Bits[mid] & (byte.MaxValue >>(8 - index % 8)));
+            bits[0] = (byte)(bits[0] & (byte.MaxValue << (index % 8)));
+            Bits[mid] = (byte)(Bits[mid] & (byte.MaxValue >> (8 - index % 8)));
         }
 
         [MethodImpl(MethodImplOptions.AggressiveInlining)]
-        public void ExtendCapacity(int capacity)
+        public void ExtendCapacity(int cap, LockExtendDirection direction)
         {
-            var bits = new byte[Bits.Length + (capacity % 8 == 0 ? capacity / 8 : capacity / 8 + 1)];
+            switch (direction)
+            {
+                case LockExtendDirection.Head:
+                    ExtendHeadCapacity(cap);
+                    break;
+                default:
+                    ExtendTailCapacity(cap);
+                    break;
+            }
+        }
+
+        [MethodImpl(MethodImplOptions.AggressiveInlining)]
+        internal void ExtendTailCapacity(int cap)
+        {
+            var len = cap % 8 == 0 ? cap >> 3 : (cap >> 3) + 1;
+            var bits = new byte[Bits.Length + len];
 
             Array.Copy(Bits, bits, Bits.Length);
 
             Bits = bits;
         }
+
+        [MethodImpl(MethodImplOptions.AggressiveInlining)]
+        internal void ExtendHeadCapacity(int cap)
+        {
+            var mod = cap % 8;
+            var len = mod == 0 ? cap >> 3 : (cap >> 3) + 1;
+            var bits = new byte[Bits.Length + len];
+
+            if (mod == 0)
+            {
+                Array.Copy(Bits, 0, bits, len, Bits.Length);
+                Bits = bits;
+                return;
+            }
+
+            if (len > 1)
+            {
+                Array.Copy(Bits, 0, bits, len - 1, Bits.Length);
+            }
+
+            Bits = bits;
+
+            for (var i = 0; i < mod; i++)
+            {
+                MoveBits((len - 1) << 3);
+            }
+        }
+
+        public override string ToString()
+        {
+            var builder = new StringBuilder($" lock table :{Index }")
+                .Append($" { (IsWaiting ? " in  wait state " : string.Empty)}")
+                .Append($" by transaction {Transaction.Id} ");
+
+            if (IsTable)
+            {
+                return builder.ToString();
+            }
+
+            builder.Append($" at page {Page}");
+            builder.Append($" with records :");
+
+            for (var i = 0; i < Bits.Length; i++)
+            {
+                builder.Append(new string(Convert.ToString(Bits[i], 2).PadLeft(8, '0').Reverse().ToArray())).Append("  ");
+            }
+
+            return builder.ToString();
+        }
+    }
+
+    public enum LockExtendDirection
+    {
+        Head,
+
+        Tail
     }
 }

@@ -74,7 +74,7 @@ namespace Vicuna.Engine.Data.Trees
                 RecordCount = cursor.TreeHeader.Count,
             };
 
-            return EngineEnviorment.LockManager.LockRec(ref req);
+            return EngineEnviorment.LockManager.Lock(ref req);
         }
 
         protected bool IsUniqueDuplicateKey(LowLevelTransaction tx, TreePageCursor cursor)

@@ -28,36 +28,71 @@ namespace Vicuna.Engine.Locking
         /// </summary>
         /// <param name="req"></param>
         /// <returns></returns>
-        public DBOperationFlags LockTab(ref LockRequest req)
+        public DBOperationFlags Lock(ref LockRequest req)
         {
-            if (req.Flags.IsDocument())
-            {
-                throw new InvalidOperationException("err api invoke!");
-            }
-
-            return LockTab(ref req, out var _);
+            return req.Flags.IsTable() ? LockTab(ref req, out var _) : LockRec(ref req, out var _);
+        }
+        
+        /// <summary>
+        /// free a lock
+        /// </summary>
+        /// <param name="entry"></param>
+        /// <returns></returns>
+        public DBOperationFlags Free(LockEntry entry)
+        {
+            return DBOperationFlags.Success;
         }
 
         /// <summary>
-        /// lock a record
+        /// merge two page's rec-lock
         /// </summary>
-        /// <param name="req"></param>
-        /// <returns></returns>
-        public DBOperationFlags LockRec(ref LockRequest req)
+        /// <param name="from"></param>
+        /// <param name="to"></param>
+        /// <param name="fromCount"></param>
+        /// <param name="toCount"></param>
+        public void MergeRecLock(PagePosition from, PagePosition to, int fromCount, int toCount)
         {
-            if (req.Flags.IsTable())
+            var toEntry = FindFirstRecLockEntry(to);
+            var fromEntry = FindFirstRecLockEntry(from);
+            if (fromEntry == null && toEntry == null)
             {
-                throw new InvalidOperationException("err api invoke!");
+                return;
             }
 
-            return LockRec(ref req, out var _);
+            var list = toEntry?.GNode?.List;
+            if (list == null)
+            {
+                list = RecLocks[to] = new LinkedList<LockEntry>();
+            }
+
+            while (toEntry != null)
+            {
+                toEntry.ExtendHeadCapacity(fromCount);
+                toEntry = FindNextRecLockEntry(toEntry);
+            }
+
+            while (fromEntry != null)
+            {
+                var entry = fromEntry;
+                var tx = entry.Transaction;
+
+                fromEntry.Page = to;
+                fromEntry.ExtendTailCapacity(toCount);
+                fromEntry = FindNextRecLockEntry(fromEntry);
+
+                entry.GNode = list.AddLast(entry);
+                entry.TNode = tx.Locks.AddLast(entry);
+            }
+
+            RecLocks.Remove(from);
         }
 
-        public void MergeRecLock(PagePosition left, PagePosition right)
-        {
-            
-        }
-
+        /// <summary>
+        /// split the from-page's rec-lock
+        /// </summary>
+        /// <param name="from"></param>
+        /// <param name="to"></param>
+        /// <param name="mid"></param>
         public void SplitRecLock(PagePosition from, PagePosition to, int mid)
         {
             var removes = new List<LockEntry>();
@@ -596,13 +631,13 @@ namespace Vicuna.Engine.Locking
         }
 
         [MethodImpl(MethodImplOptions.AggressiveInlining)]
-        internal void ExtendRecLockCapacity(PagePosition pos, int count)
+        internal void ExtendRecLockCapacity(PagePosition pos, int count, LockExtendDirection direction)
         {
             var entry = FindFirstRecLockEntry(pos);
 
             while (entry != null)
             {
-                entry.ExtendCapacity(count);
+                entry.ExtendCapacity(count, direction);
                 entry = FindNextRecLockEntry(entry);
             }
         }
