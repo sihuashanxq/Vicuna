@@ -1,41 +1,26 @@
 ﻿using System;
-using System.Diagnostics;
 using Vicuna.Engine.Locking;
 using Vicuna.Engine.Transactions;
 
 namespace Vicuna.Engine.Data.Trees
 {
-    public enum DBOperationFlags
-    {
-        Error,
-
-        Success,
-
-        Waitting,
-
-        DeadLock
-    }
-
     public partial class Tree
     {
         public DBOperationFlags AddClusterEntry(LowLevelTransaction tx, Span<byte> key, Span<byte> value)
         {
             var cursor = GetCursorForUpdate(tx, key, -1);
-            if (cursor.LastMatch != 0 || cursor.IsBranch || Index.IsUnique == false)
+            if (cursor.LastMatch != 0 || cursor.IsBranch)
             {
                 return AddClusterEntry(tx, cursor, key, value);
             }
 
-            if (Index.IsCluster)
+            var flags = LockRec(tx, cursor, LockFlags.Exclusive | LockFlags.Document);
+            if (flags == DBOperationFlags.Success)
             {
-                var flags = LockRec(tx, cursor, LockFlags.Exclusive | LockFlags.Document);
-                if (flags != DBOperationFlags.Success)
-                {
-                    return flags;
-                }
+                return flags;
             }
 
-            if (IsUniqueDuplicateKey(tx, cursor))
+            if (IsDuplicateKey(tx, cursor))
             {
                 throw new InvalidOperationException($"duplicate key for {key.ToString()}");
             }
@@ -44,7 +29,7 @@ namespace Vicuna.Engine.Data.Trees
         }
 
         /// <summary>
-        /// AddCluster None Locking
+        /// add clusterd k-v
         /// </summary>
         /// <param name="tx"></param>
         /// <param name="cursor"></param>
@@ -67,7 +52,7 @@ namespace Vicuna.Engine.Data.Trees
             var req = new LockRequest()
             {
                 Flags = flags,
-                Index = null,
+                Index = Index,
                 Position = cursor.Current.Position,
                 Transaction = tx.Transaction,
                 RecordSlot = cursor.LastMatchIndex,
@@ -77,7 +62,13 @@ namespace Vicuna.Engine.Data.Trees
             return EngineEnviorment.LockManager.Lock(ref req);
         }
 
-        protected bool IsUniqueDuplicateKey(LowLevelTransaction tx, TreePageCursor cursor)
+        /// <summary>
+        /// check if the key is duplicated
+        /// </summary>
+        /// <param name="tx"></param>
+        /// <param name="cursor"></param>
+        /// <returns></returns>
+        protected bool IsDuplicateKey(LowLevelTransaction tx, TreePageCursor cursor)
         {
             return Index.IsUnique && !cursor.GetNodeHeader(cursor.LastMatchIndex).IsDeleted;
         }

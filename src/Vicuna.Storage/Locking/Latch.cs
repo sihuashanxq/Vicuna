@@ -56,35 +56,23 @@ namespace Vicuna.Engine.Locking
 
         public void ExitRead()
         {
-#if (DEBUG)
-            Debug.Assert(IsReadHeld);
-#endif
             _internalLock.ExitReadLock();
         }
 
         public void ExitWrite()
         {
-#if (DEBUG)
-            Debug.Assert(IsWriteHeld);
-#endif
             _internalLock.ExitWriteLock();
         }
 
         public LatchReleaserEntry EnterRead()
         {
             _internalLock.ExitReadLock();
-#if (DEBUG)
-            Debug.Assert(IsReadHeld);
-#endif
             return new LatchReleaserEntry(this, LatchFlags.Read);
         }
 
         public LatchReleaserEntry EnterWrite()
         {
             _internalLock.ExitReadLock();
-#if (DEBUG)
-            Debug.Assert(IsWriteHeld);
-#endif
             return new LatchReleaserEntry(this, LatchFlags.Write);
         }
     }

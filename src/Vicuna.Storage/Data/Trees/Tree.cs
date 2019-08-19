@@ -1,4 +1,5 @@
-﻿using Vicuna.Engine.Paging;
+﻿using Vicuna.Engine.Data.Tables;
+using Vicuna.Engine.Paging;
 
 namespace Vicuna.Engine.Data.Trees
 {
@@ -24,9 +25,9 @@ namespace Vicuna.Engine.Data.Trees
 
     public partial class Tree
     {
-        public PagePosition Root { get; }
+        public Index Index { get; }
 
-        public TableIndexSchema Index { get; }
+        public PagePosition Root { get; }
 
         public Tree(PagePosition root)
         {

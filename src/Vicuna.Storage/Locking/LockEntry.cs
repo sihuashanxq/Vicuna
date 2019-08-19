@@ -82,7 +82,7 @@ namespace Vicuna.Engine.Locking
         }
 
         [MethodImpl(MethodImplOptions.AggressiveInlining)]
-        public int GetFirstBitIndex()
+        public int GetFirstBitSlot()
         {
             for (var i = 0; i < Bits.Length; i++)
             {

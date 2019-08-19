@@ -1,5 +1,4 @@
-﻿using System;
-using System.Collections.Generic;
+﻿using System.Collections.Generic;
 using System.Runtime.CompilerServices;
 using System.Threading;
 using Vicuna.Engine.Data.Tables;
@@ -32,14 +31,96 @@ namespace Vicuna.Engine.Locking
         {
             return req.Flags.IsTable() ? LockTab(ref req, out var _) : LockRec(ref req, out var _);
         }
-        
+
         /// <summary>
-        /// free a lock
+        /// </summary>
+        /// <param name="req"></param>
+        /// <returns></returns>
+        public DBOperationFlags UnLock(LockEntry entry)
+        {
+            if (entry == null)
+            {
+                return DBOperationFlags.Success;
+            }
+
+            var list = entry.GNode.List;
+            var next = FindNextLockEntry(entry);
+
+            list.Remove(entry.GNode);
+
+            return entry.IsTable ? UnLockTab(entry, next) : UnLockRec(entry, next);
+        }
+
+        /// <summary>
+        /// un-lock-rec and try wake up from the next to the end
         /// </summary>
         /// <param name="entry"></param>
+        /// <param name="next"></param>
         /// <returns></returns>
-        public DBOperationFlags Free(LockEntry entry)
+        internal DBOperationFlags UnLockRec(LockEntry entry, LockEntry next)
         {
+            while (next != null)
+            {
+                if (!next.IsWaiting)
+                {
+                    next = FindNextLockEntry(next);
+                    continue;
+                }
+
+                var slot = next.GetFirstBitSlot();
+                if (slot < 0 || entry.GetBit(slot) == 0)
+                {
+                    next = FindNextLockEntry(next);
+                    continue;
+                }
+
+                if (IsOthersHeldOrWaitConflictRecLock(next.Transaction, next.Page, slot, next.Flags, next))
+                {
+                    next = FindNextLockEntry(next);
+                    continue;
+                }
+
+                next.Flags &= ~LockFlags.Waiting;
+                next.Transaction.WaitLock = null;
+                next.Transaction.WaitEvent.Set();
+                next.Transaction.State = TransactionState.Running;
+
+                next = FindNextLockEntry(next);
+            }
+
+            return DBOperationFlags.Success;
+        }
+
+        /// <summary>
+        /// un-lock-tab and try wake up from the next to the end
+        /// </summary>
+        /// <param name="entry"></param>
+        /// <param name="next"></param>
+        /// <returns></returns>
+        internal DBOperationFlags UnLockTab(LockEntry entry, LockEntry next)
+        {
+            while (next != null)
+            {
+                if (!next.IsWaiting)
+                {
+                    next = FindNextLockEntry(next);
+                    continue;
+                }
+
+                if (IsOthersHeldOrWaitConflictTabLock(next.Transaction, next.Index, next.Flags, next))
+                {
+                    next = FindNextLockEntry(next);
+                    continue;
+                }
+
+                next.Flags |= ~LockFlags.Waiting;
+                next.Transaction.WaitLock = null;
+                next.Transaction.WaitEvent.Set();
+                next.Transaction.State = TransactionState.Running;
+
+                next = FindNextLockEntry(next);
+            }
+
             return DBOperationFlags.Success;
         }
 
@@ -68,7 +149,7 @@ namespace Vicuna.Engine.Locking
             while (toEntry != null)
             {
                 toEntry.ExtendHeadCapacity(fromCount);
-                toEntry = FindNextRecLockEntry(toEntry);
+                toEntry = FindNextLockEntry(toEntry);
             }
 
             while (fromEntry != null)
@@ -78,7 +159,7 @@ namespace Vicuna.Engine.Locking
 
                 fromEntry.Page = to;
                 fromEntry.ExtendTailCapacity(toCount);
-                fromEntry = FindNextRecLockEntry(fromEntry);
+                fromEntry = FindNextLockEntry(fromEntry);
 
                 entry.GNode = list.AddLast(entry);
                 entry.TNode = tx.Locks.AddLast(entry);
@@ -105,7 +186,7 @@ namespace Vicuna.Engine.Locking
                 var toEntry = SplitRecLock(fromEntry, to, mid);
                 if (toEntry == null)
                 {
-                    fromEntry = FindNextRecLockEntry(fromEntry);
+                    fromEntry = FindNextLockEntry(fromEntry);
                     continue;
                 }
 
@@ -122,7 +203,7 @@ namespace Vicuna.Engine.Locking
                     tx.WaitLock = toEntry;
                 }
 
-                fromEntry = FindNextRecLockEntry(fromEntry);
+                fromEntry = FindNextLockEntry(fromEntry);
             }
 
             foreach (var entry in removes)
@@ -141,7 +222,7 @@ namespace Vicuna.Engine.Locking
                 return null;
             }
 
-            var count = fromEntry.Count - mid / 8 + 8;
+            var count = fromEntry.Count - (mid >> 3) + 8;
             var buffer = stackalloc byte[count];
 
             fromEntry.CopyBitsTo(mid, buffer);
@@ -164,7 +245,7 @@ namespace Vicuna.Engine.Locking
                     Transaction = fromEntry.Transaction
                 };
 
-                Unsafe.CopyBlock(ref toEntry.Bits[0], ref * buffer, (uint) count);
+                Unsafe.CopyBlock(ref toEntry.Bits[0], ref *buffer, (uint)count);
 
                 return toEntry;
             }
@@ -192,7 +273,7 @@ namespace Vicuna.Engine.Locking
                 return DBOperationFlags.Success;
             }
 
-            if (IsOthersHeldOrWaitConflictRecLock(ref req))
+            if (IsOthersHeldOrWaitConflictRecLock(req.Transaction, req.Position, req.RecordSlot, req.Flags))
             {
                 req.Flags |= LockFlags.Waiting;
                 return CreateRecLockForWait(ref req, out entry);
@@ -222,7 +303,7 @@ namespace Vicuna.Engine.Locking
                 return DBOperationFlags.Success;
             }
 
-            if (IsOthersHeldOrWaitConflictTabLock(ref req))
+            if (IsOthersHeldOrWaitConflictTabLock(req.Transaction, req.Index, req.Flags))
             {
                 req.Flags |= LockFlags.Waiting;
                 return CreateTabLockForWait(ref req, out entry);
@@ -304,9 +385,9 @@ namespace Vicuna.Engine.Locking
         /// </summary>
         /// <param name="req"></param>
         /// <returns></returns>
-        private bool IsOthersHeldOrWaitConflictRecLock(ref LockRequest req)
+        private bool IsOthersHeldOrWaitConflictRecLock(Transaction tx, PagePosition page, int slot, LockFlags flags, LockEntry endEntry = null)
         {
-            var locks = RecLocks.GetValueOrDefault(req.Position);
+            var locks = RecLocks.GetValueOrDefault(page);
             if (locks == null)
             {
                 return false;
@@ -314,14 +395,19 @@ namespace Vicuna.Engine.Locking
 
             for (var node = locks.First; node != null; node = node.Next)
             {
-                var lockEntry = node.Value;
-                if (lockEntry.Transaction == req.Transaction ||
-                    lockEntry.GetBit(req.RecordSlot) == 0)
+                var entry = node.Value;
+                if (entry == endEntry)
+                {
+                    break;
+                }
+
+                if (entry.Transaction == tx ||
+                    entry.GetBit(slot) == 0)
                 {
                     continue;
                 }
 
-                if (lockEntry.IsExclusive || req.Flags.IsExclusive())
+                if (entry.IsExclusive || flags.IsExclusive())
                 {
                     return true;
                 }
@@ -335,9 +421,9 @@ namespace Vicuna.Engine.Locking
         /// </summary>
         /// <param name="req"></param>
         /// <returns></returns>
-        private bool IsOthersHeldOrWaitConflictTabLock(ref LockRequest req)
+        private bool IsOthersHeldOrWaitConflictTabLock(Transaction tx, Index index, LockFlags flags, LockEntry endEntry = null)
         {
-            var locks = TabLocks.GetValueOrDefault(req.Index);
+            var locks = TabLocks.GetValueOrDefault(index);
             if (locks == null)
             {
                 return false;
@@ -345,13 +431,18 @@ namespace Vicuna.Engine.Locking
 
             for (var node = locks.First; node != null; node = node.Next)
             {
-                var lockEntry = node.Value;
-                if (lockEntry.Transaction == req.Transaction)
+                var entry = node.Value;
+                if (entry == endEntry)
+                {
+                    break;
+                }
+
+                if (entry.Transaction == tx)
                 {
                     continue;
                 }
 
-                if (lockEntry.IsExclusive || req.Flags.IsExclusive())
+                if (entry.IsExclusive || flags.IsExclusive())
                 {
                     return true;
                 }
@@ -370,7 +461,7 @@ namespace Vicuna.Engine.Locking
             if (!RecLocks.TryGetValue(req.Position, out var list))
             {
                 list = new LinkedList<LockEntry>();
-                RecLocks[req.Position] = list;;
+                RecLocks[req.Position] = list; ;
             }
 
             var tx = req.Transaction;
@@ -403,7 +494,7 @@ namespace Vicuna.Engine.Locking
             if (!TabLocks.TryGetValue(req.Index, out var list))
             {
                 list = new LinkedList<LockEntry>();
-                TabLocks[req.Index] = list;;
+                TabLocks[req.Index] = list; ;
             }
 
             var tx = req.Transaction;
@@ -467,7 +558,7 @@ namespace Vicuna.Engine.Locking
         private DBOperationFlags CreateRecLockForWait(ref LockRequest req, out LockEntry entry)
         {
             var recEntry = CreateRecLock(ref req);
-            if (recEntry.IsWaiting == false)
+            if (!recEntry.IsWaiting)
             {
                 recEntry.Flags |= LockFlags.Waiting;
             }
@@ -498,7 +589,7 @@ namespace Vicuna.Engine.Locking
         private DBOperationFlags CreateTabLockForWait(ref LockRequest req, out LockEntry entry)
         {
             var tabEntry = CreateTabLock(ref req);
-            if (tabEntry.IsWaiting == false)
+            if (!tabEntry.IsWaiting)
             {
                 tabEntry.Flags |= LockFlags.Waiting;
             }
@@ -526,12 +617,7 @@ namespace Vicuna.Engine.Locking
         /// <returns></returns>
         private bool IsCausedDeadLock(LockEntry entry)
         {
-            if (!entry.IsWaiting)
-            {
-                throw new InvalidOperationException($"err api invoke!");
-            }
-
-            if (entry.Transaction.Locks.Count == 1)
+            if (entry.Transaction.Locks.Count == 1 || !entry.IsWaiting)
             {
                 return false;
             }
@@ -557,7 +643,7 @@ namespace Vicuna.Engine.Locking
                 return true;
             }
 
-            var lockBit = entry.IsTable ? 0 : entry.GetFirstBitIndex();
+            var lockBit = entry.IsTable ? 0 : entry.GetFirstBitSlot();
             if (lockBit < 0)
             {
                 return false;
@@ -565,7 +651,7 @@ namespace Vicuna.Engine.Locking
 
             while (true)
             {
-                var prevEntry = FindPrevRecLockEntry(entry);
+                var prevEntry = FindPrevLockEntry(entry);
                 if (prevEntry == null)
                 {
                     checkEntry.Transaction.DeadFlags = 1;
@@ -580,7 +666,7 @@ namespace Vicuna.Engine.Locking
                     continue;
                 }
 
-                if (checkEntry.IsExclusive || prevEntry.IsExclusive)
+                if (IsLockConflict(checkEntry, prevEntry))
                 {
                     if (prevEntry.Transaction == initTx)
                     {
@@ -614,8 +700,10 @@ namespace Vicuna.Engine.Locking
             {
                 return true;
             }
-
-            return entry.IsExclusive || other.IsExclusive;
+            else
+            {
+                return entry.IsExclusive || other.IsExclusive;
+            }
         }
 
         [MethodImpl(MethodImplOptions.AggressiveInlining)]
@@ -626,7 +714,7 @@ namespace Vicuna.Engine.Locking
             while (entry != null)
             {
                 entry.MoveBits(index);
-                entry = FindNextRecLockEntry(entry);
+                entry = FindNextLockEntry(entry);
             }
         }
 
@@ -638,7 +726,7 @@ namespace Vicuna.Engine.Locking
             while (entry != null)
             {
                 entry.ExtendCapacity(count, direction);
-                entry = FindNextRecLockEntry(entry);
+                entry = FindNextLockEntry(entry);
             }
         }
 
@@ -649,13 +737,19 @@ namespace Vicuna.Engine.Locking
         }
 
         [MethodImpl(MethodImplOptions.AggressiveInlining)]
-        internal LockEntry FindNextRecLockEntry(LockEntry entry)
+        internal LockEntry FindFirstTabLockEntry(Index index)
+        {
+            return TabLocks.TryGetValue(index, out var list) ? list.First.Value : null;
+        }
+
+        [MethodImpl(MethodImplOptions.AggressiveInlining)]
+        internal LockEntry FindNextLockEntry(LockEntry entry)
         {
             return entry?.GNode?.Next?.Value;
         }
 
         [MethodImpl(MethodImplOptions.AggressiveInlining)]
-        internal LockEntry FindPrevRecLockEntry(LockEntry entry)
+        internal LockEntry FindPrevLockEntry(LockEntry entry)
         {
             return entry?.GNode?.Previous?.Value;
         }
