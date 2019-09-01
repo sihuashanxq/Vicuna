@@ -2,12 +2,12 @@
 {
     public enum TreeNodeHeaderFlags : byte 
     {
-        Data = 1,
+        Primary = 1,
 
-        DataOverflow = 2,
+        Data = 2,
 
-        DataRefrence = 3,
+        Page = 3,
 
-        PageRefrence = 3
+        Overflow = 4
     }
 }

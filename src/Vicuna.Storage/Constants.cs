@@ -8,10 +8,10 @@
 
         public const int PageSize = 16 * KB;
 
-        public const int PageTailSize = 8;
+        public const int PageTailerSize = 8;
 
         public const int PageHeaderSize = 96;
 
-        public const int PageBodySize = PageSize - PageHeaderSize - PageTailSize;
+        public const int PageBodySize = PageSize - PageHeaderSize - PageTailerSize;
     }
 }

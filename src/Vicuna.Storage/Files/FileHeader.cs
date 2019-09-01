@@ -1,11 +1,12 @@
 ﻿using System;
 using System.Runtime.CompilerServices;
 using System.Runtime.InteropServices;
+using Vicuna.Engine.Paging;
 
 namespace Vicuna.Engine.Storages
 {
     [StructLayout(LayoutKind.Explicit, Pack = 1, Size = SizeOf)]
-    public unsafe struct FileHeader 
+    public unsafe struct FileHeader
     {
         public const int SizeOf = Constants.PageHeaderSize;
 
@@ -23,9 +24,6 @@ namespace Vicuna.Engine.Storages
 
         [FieldOffset(21)]
         public long LastPageNumber;
-
-        [FieldOffset(29)]
-        public fixed byte Reserved[SizeOf - 29 - 1];
 
         public ushort this[string name]
         {

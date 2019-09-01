@@ -3,6 +3,7 @@ using System.Collections.Generic;
 using Vicuna.Engine.Buffers;
 using Vicuna.Engine.Locking;
 using Vicuna.Engine.Paging;
+using Vicuna.Engine.Storages;
 
 namespace Vicuna.Engine.Transactions
 {
@@ -12,42 +13,38 @@ namespace Vicuna.Engine.Transactions
 
         internal BufferPool Buffers { get; }
 
-        internal LockManager LockManager { get; }
+        internal PageManager PageManager { get; }
 
         internal Transaction Transaction { get; }
 
-        internal Stack<LatchReleaserEntry> Latches { get; }
+        internal Stack<LatchScope> LatchScopes { get; }
 
-        internal LowLevelTransactionJournal Journal { get; }
+        internal Dictionary<object, LatchScope> LatchScopeMaps { get; }
 
-        internal Dictionary<PagePosition, TempBufferCache> Modifies { get; }
-
-        internal Dictionary<object, LatchReleaserEntry> LatchTargets { get; }
+        internal Dictionary<PagePosition, Page> Modifies { get; }
 
         public LowLevelTransaction(long id, BufferPool buffers)
         {
             Id = id;
-            Journal = new LowLevelTransactionJournal();
-            Latches = new Stack<LatchReleaserEntry>();
+            LatchScopes = new Stack<LatchScope>();
             Buffers = buffers ?? throw new ArgumentNullException(nameof(buffers));
-            Modifies = new Dictionary<PagePosition, TempBufferCache>();
-            LatchTargets = new Dictionary<object, LatchReleaserEntry>();
-        }
-
-        public Page GetPage(int id, long number)
-        {
-            return GetPage(new PagePosition(id, number));
+            Modifies = new Dictionary<PagePosition, Page>();
+            LatchScopeMaps = new Dictionary<object, LatchScope>();
         }
 
         public Page GetPage(PagePosition pos)
         {
-            var temporary = GetModifiedPage(pos);
-            if (temporary != null)
+            if (Modifies.TryGetValue(pos, out var cache))
             {
-                return temporary;
+                return cache;
             }
 
-            var buffer = Buffers.GetBuffer(pos);
+            if (LatchScopeMaps.TryGetValue(pos, out var entry))
+            {
+                return ((BufferEntry)entry?.Latch?.Target)?.Page;
+            }
+
+            var buffer = Buffers.GetEntry(pos);
             if (buffer == null)
             {
                 return null;
@@ -58,96 +55,82 @@ namespace Vicuna.Engine.Transactions
 
         public Page GetPage(BufferEntry buffer)
         {
-            var temporary = GetModifiedPage(buffer.Position);
-            if (temporary != null)
+            if (Modifies.TryGetValue(buffer.Page.Position, out var cache))
             {
-                return temporary;
+                return cache;
             }
 
-            if (!LatchTargets.ContainsKey(buffer.Page.Position))
+            if (!LatchScopeMaps.ContainsKey(buffer.Page.Position))
             {
-                AddLatch(buffer.Latch.EnterRead());
+                AddLatchScope(buffer.Latch.EnterReadScope());
             }
 
             return buffer.Page;
         }
 
+        public Page ModifyPage(int fileId, long pageNumber)
+        {
+            return ModifyPage(new PagePosition(fileId, pageNumber));
+        }
+
         public Page ModifyPage(PagePosition pos)
         {
-            var temporary = GetModifiedPage(pos);
-            if (temporary != null)
+            if (!Modifies.TryGetValue(pos, out var entry))
             {
-                return temporary;
-            }
-
-            var buffer = Buffers.GetBuffer(pos);
-            if (buffer == null)
-            {
-                return null;
-            }
-
-            if (LatchTargets.TryGetValue(buffer.Page.Position, out var latch))
-            {
-                if (latch.Flags == LatchFlags.Read)
+                var buffer = Buffers.GetEntry(pos);
+                if (buffer == null)
                 {
-                    throw new InvalidOperationException($"buffer's read latch has been hold {buffer.Page.Position}");
+                    return null;
                 }
-            }
-            else
-            {
-                AddLatch(buffer.Latch.EnterWrite());
+
+                AddLatchScope(buffer.Latch.EnterWriteScope());
+                Modifies[buffer.Position] = buffer.Page;
+
+                return buffer.Page;
             }
 
-            temporary = buffer.Page.CreateCopy();
-            Modifies[buffer.Position] = new TempBufferCache(buffer, temporary);
-
-            return temporary;
+            return entry;
         }
 
         public Page ModifyPage(BufferEntry buffer)
         {
-            if (Modifies.TryGetValue(buffer.Position, out var cache))
+            if (buffer == null)
             {
-                return cache.Temporary;
+                throw new ArgumentNullException(nameof(buffer));
             }
 
-            if (LatchTargets.TryGetValue(buffer.Position, out var latch))
+            if (!Modifies.TryGetValue(buffer.Page.Position, out var entry))
             {
-                if (latch.Flags == LatchFlags.Read)
-                {
-                    throw new InvalidOperationException($"buffer's read latch has been hold {buffer.Page.Position}");
-                }
-            }
-            else
-            {
-                AddLatch(buffer.Latch.EnterWrite());
+                AddLatchScope(buffer.Latch.EnterWriteScope());
+                Modifies[buffer.Position] = buffer.Page;
+
+                return buffer.Page;
             }
 
-            cache = new TempBufferCache(buffer, buffer.Page.CreateCopy());
-            Modifies[buffer.Position] = cache;
-
-            return cache.Temporary;
+            return entry;
         }
 
-        protected Page GetModifiedPage(PagePosition pos)
+        public void ModifyFile(File file)
         {
-            if (Modifies.TryGetValue(pos, out var cache))
-            {
-                return cache.Temporary;
-            }
-
-            return null;
+            AddLatchScope(file.Latch.EnterWriteScope());
         }
 
-        public void AddLatch(LatchReleaserEntry entry)
+        public void FreePage(Page page)
         {
-            if (LatchTargets.TryGetValue(entry.Latch.Target, out var old))
-            {
-                throw new InvalidOperationException($"latch at target:{old.Latch.Target} has already exists!");
-            }
 
-            Latches.Push(entry);
-            LatchTargets.Add(entry.Latch.Target, entry);
+        }
+
+        public IEnumerable<Page> AllocPage(int fileId, uint count)
+        {
+            var list = PageManager.AllocPageAtFree(this, fileId, count);
+
+            for (var i = 0; i < list.Count; i++)
+            {
+                var pos = list[i];
+                var buffer = Buffers.AllocEntry(pos);
+
+                yield return ModifyPage(buffer);
+            }
         }
 
         public LowLevelTransaction StartNew()
@@ -155,19 +138,29 @@ namespace Vicuna.Engine.Transactions
             return new LowLevelTransaction(Id, Buffers);
         }
 
-        public void Reset()
+        protected void AddLatchScope(LatchScope scope)
         {
-            Journal.Clear();
-            Modifies.Clear();
-            Latches.Clear();
-            LatchTargets.Clear();
+            if (LatchScopeMaps.TryGetValue(scope.Latch.Target, out var old))
+            {
+                if (old.Flags != scope.Flags)
+                {
+                    throw new InvalidOperationException($"latch at target:{old.Latch.Target} has already exists!");
+                }
+
+                return;
+            }
+
+            LatchScopes.Push(scope);
+            LatchScopeMaps.Add(scope.Latch.Target, scope);
         }
 
         public void Commit()
         {
-            CopyTempToPages();
-            ReleaseLatches();
-            Reset();
+            ReleaseResources();
+
+            Modifies.Clear();
+            LatchScopes.Clear();
+            LatchScopeMaps.Clear();
         }
 
         public void Dispose()
@@ -175,24 +168,13 @@ namespace Vicuna.Engine.Transactions
             Commit();
         }
 
-        private void CopyTempToPages()
-        {
-            foreach (var item in Modifies)
-            {
-                var page = item.Value.Buffer.Page;
-                var temp = item.Value.Temporary;
-
-                temp.CopyTo(page);
-            }
-        }
-
-        private void ReleaseLatches()
+        private void ReleaseResources()
         {
             lock (Buffers.SyncRoot)
             {
-                while (Latches.Count != 0)
+                while (LatchScopes.Count != 0)
                 {
-                    var latch = Latches.Pop();
+                    var latch = LatchScopes.Pop();
                     if (latch.Latch.Target is BufferEntry entry)
                     {
                         entry.Count--;
@@ -201,19 +183,6 @@ namespace Vicuna.Engine.Transactions
                     latch.Dispose();
                 }
             }
-        }
-    }
-
-    internal struct TempBufferCache
-    {
-        public Page Temporary;
-
-        public BufferEntry Buffer;
-
-        public TempBufferCache(BufferEntry buffer, Page temporary)
-        {
-            Buffer = buffer;
-            Temporary = temporary;
         }
     }
 }

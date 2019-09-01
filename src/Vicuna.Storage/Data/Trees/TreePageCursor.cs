@@ -160,7 +160,7 @@ namespace Vicuna.Engine.Data.Trees
         public bool Allocate(int index, ushort size, TreeNodeHeaderFlags flags, out TreeNodeEntry entry)
         {
             size += TreeNodeHeader.SizeOf;                                                                  //+ header-size
-            size += flags == TreeNodeHeaderFlags.Data ? TreeNodeTransactionHeader.SizeOf : (ushort)0;       //+ trans-header-size
+            size += flags == TreeNodeHeaderFlags.Primary ? TreeNodeTransactionHeader.SizeOf : (ushort)0;       //+ trans-header-size
             return AllocateInternal(index, size, flags, out entry);
         }
 
@@ -188,21 +188,21 @@ namespace Vicuna.Engine.Data.Trees
                 var start = GetNodeSlot(index);
                 var len = header.Low - start;
 
-                var to = Current.Slice(start + sizeof(ushort), len);
-                var from = Current.Slice(start, len);
+                var to = Current.ReadAt(start + sizeof(ushort), len);
+                var from = Current.ReadAt(start, len);
 
                 from.CopyTo(to);
-                Current.Write(start, (ushort)upper);
+                Current.WriteTo(start, (ushort)upper);
             }
             else
             {
-                Current.Write(header.Low, (ushort)upper);
+                Current.WriteTo(header.Low, (ushort)upper);
             }
 
             entry = new TreeNodeEntry()
             {
                 Slot = header.Low,
-                Data = Current.Slice(upper, size),
+                Data = Current.ReadAt(upper, size),
                 Index = (short)index,
                 Position = (ushort)upper
             };
@@ -218,14 +218,14 @@ namespace Vicuna.Engine.Data.Trees
         [MethodImpl(MethodImplOptions.AggressiveInlining)]
         public ref TreeNodeHeader GetNodeHeader(ushort pos)
         {
-            return ref Current.Read<TreeNodeHeader>(pos, TreeNodeHeader.SizeOf);
+            return ref Current.ReadAt<TreeNodeHeader>(pos, TreeNodeHeader.SizeOf);
         }
 
         [MethodImpl(MethodImplOptions.AggressiveInlining)]
         public ref TreeNodeHeader GetNodeHeader(int index)
         {
             var ptr = GetNodePointer(LastMatchIndex);
-            if (ptr > Constants.PageSize - Constants.PageTailSize || ptr < Constants.PageHeaderSize)
+            if (ptr > Constants.PageSize - Constants.PageTailerSize || ptr < Constants.PageHeaderSize)
             {
                 throw new PageCorruptedException(Current);
             }
@@ -260,10 +260,10 @@ namespace Vicuna.Engine.Data.Trees
             ref var node = ref GetNodeHeader(ptr);
             switch (node.NodeFlags)
             {
-                case TreeNodeHeaderFlags.Data:
+                case TreeNodeHeaderFlags.Primary:
                     size += node.KeySize + TreeNodeTransactionHeader.SizeOf + node.DataSize;
                     break;
-                case TreeNodeHeaderFlags.DataRefrence:
+                case TreeNodeHeaderFlags.Data:
                     size += node.KeySize + node.DataSize;
                     break;
                 default:
@@ -271,7 +271,7 @@ namespace Vicuna.Engine.Data.Trees
                     break;
             }
 
-            if (ptr + size > Constants.PageSize - Constants.PageTailSize)
+            if (ptr + size > Constants.PageSize - Constants.PageTailerSize)
             {
                 throw new PageCorruptedException(Current);
             }
@@ -279,7 +279,7 @@ namespace Vicuna.Engine.Data.Trees
             entry = new TreeNodeEntry()
             {
                 Slot = GetNodeSlot(index),
-                Data = Current.Slice(ptr, size),
+                Data = Current.ReadAt(ptr, size),
                 Index = (short)index,
                 Position = ptr
             };
@@ -304,12 +304,12 @@ namespace Vicuna.Engine.Data.Trees
             var pos = ptr + TreeNodeHeader.SizeOf;
 
             ref var node = ref GetNodeHeader(ptr);
-            if (pos + node.KeySize > Constants.PageSize - Constants.PageTailSize)
+            if (pos + node.KeySize > Constants.PageSize - Constants.PageTailerSize)
             {
                 throw new PageCorruptedException(Current);
             }
 
-            return Current.Slice(pos, node.KeySize);
+            return Current.ReadAt(pos, node.KeySize);
         }
 
         [MethodImpl(MethodImplOptions.AggressiveInlining)]
@@ -331,22 +331,22 @@ namespace Vicuna.Engine.Data.Trees
             ref var node = ref GetNodeHeader(ptr);
             switch (node.NodeFlags)
             {
-                case TreeNodeHeaderFlags.Data:
+                case TreeNodeHeaderFlags.Primary:
                     pos = TreeNodeHeader.SizeOf + ptr + node.KeySize + TreeNodeTransactionHeader.SizeOf;
                     break;
-                case TreeNodeHeaderFlags.DataRefrence:
+                case TreeNodeHeaderFlags.Data:
                     pos = TreeNodeHeader.SizeOf + ptr + node.KeySize;
                     break;
                 default:
                     return Span<byte>.Empty;
             }
 
-            if (pos + node.DataSize > Constants.PageSize - Constants.PageTailSize)
+            if (pos + node.DataSize > Constants.PageSize - Constants.PageTailerSize)
             {
                 throw new PageCorruptedException(Current);
             }
 
-            return Current.Slice(pos, node.DataSize);
+            return Current.ReadAt(pos, node.DataSize);
         }
 
         [MethodImpl(MethodImplOptions.AggressiveInlining)]
@@ -364,8 +364,8 @@ namespace Vicuna.Engine.Data.Trees
                 throw new IndexOutOfRangeException($"index:{index},slot:{slot},page:{Current.Position}");
             }
 
-            var ptr = Current.Read<ushort>(slot);
-            if (ptr < 0 || ptr > Constants.PageSize - Constants.PageTailSize)
+            var ptr = Current.ReadAt<ushort>(slot);
+            if (ptr < 0 || ptr > Constants.PageSize - Constants.PageTailerSize)
             {
                 throw new PageCorruptedException(Current);
             }
@@ -395,13 +395,13 @@ namespace Vicuna.Engine.Data.Trees
                 index -= size;
 
                 to = buffer.Slice(index, size);
-                from = Current.Slice(ptr, size);
+                from = Current.ReadAt(ptr, size);
 
                 from.CopyTo(to);
-                Current.Write(slot, (ushort)(header.Upper + index));
+                Current.WriteTo(slot, (ushort)(header.Upper + index));
             }
 
-            to = Current.Slice(header.Upper, len);
+            to = Current.ReadAt(header.Upper, len);
             from = buffer;
             from.CopyTo(to);
 

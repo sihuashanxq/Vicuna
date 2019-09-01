@@ -27,16 +27,37 @@ namespace Vicuna.Engine.Buffers
             Buffers = new Dictionary<PagePosition, BufferEntry>();
         }
 
+        public BufferEntry AllocEntry(PagePosition pos)
+        {
+            lock (SyncRoot)
+            {
+                var buffer = CreateEntry(pos, BufferState.Clean);
+
+                buffer.Count++;
+                buffer.Page = new Page(new byte[Constants.PageSize]);
+                Buffers[pos] = buffer;
+
+                MoveLRUEntry(buffer);
+
+                return buffer;
+            }
+        }
+
+        public BufferEntry GetEntry(int fileId, long pageNumber)
+        {
+            return GetEntry(new PagePosition(fileId, pageNumber));
+        }
+
         /// <summary>
         /// 获取缓冲项
         /// </summary>
         /// <param name="pos"></param>
         /// <param name="flags"></param>
         /// <returns></returns>
-        public BufferEntry GetBuffer(PagePosition pos, BufferPeekFlags flags = BufferPeekFlags.None)
+        public BufferEntry GetEntry(PagePosition pos, BufferSeekFlags flags = BufferSeekFlags.None)
         {
             //获取或者新分配(创建)一个Buffer
-            var buffer = GetOrCreateBuffer(pos, flags);
+            var buffer = GetOrCreateEntry(pos, flags);
             if (buffer == null)
             {
                 return buffer;
@@ -49,7 +70,7 @@ namespace Vicuna.Engine.Buffers
 
                 lock (SyncRoot)
                 {
-                    AddLRUBuffer(buffer);
+                    AddLRUEntry(buffer);
 
                     return buffer;
                 }
@@ -64,7 +85,7 @@ namespace Vicuna.Engine.Buffers
         /// <param name="pos"></param>
         /// <param name="flags"></param>
         /// <returns></returns>
-        private BufferEntry GetOrCreateBuffer(PagePosition pos, BufferPeekFlags flags)
+        public BufferEntry GetOrCreateEntry(PagePosition pos, BufferSeekFlags flags)
         {
             //缓冲区锁
             Monitor.Enter(SyncRoot);
@@ -72,10 +93,10 @@ namespace Vicuna.Engine.Buffers
             //对应页的buffer不存在,创建,获取写锁(很快)阻塞读,释放缓冲区锁,返回去读取
             if (!Buffers.TryGetValue(pos, out var buffer))
             {
-                buffer = CreateBuffer(pos);
+                buffer = CreateEntry(pos);
 
                 buffer.Count++;
-                buffer.Latch.EnterWrite();
+                buffer.Latch.EnterWriteScope();
                 Buffers[pos] = buffer;
 
                 Monitor.Exit(SyncRoot);
@@ -87,14 +108,17 @@ namespace Vicuna.Engine.Buffers
             {
                 buffer.Count++;
 
-                MoveLRUBuffer(buffer, flags);
+                if (!flags.HasFlag(BufferSeekFlags.NoLRU))
+                {
+                    MoveLRUEntry(buffer);
+                }
 
                 Monitor.Exit(SyncRoot);
                 return buffer;
             }
 
             //不等待页面加载,不增加引用计数
-            if (flags.HasFlag(BufferPeekFlags.NoneWait))
+            if (flags.HasFlag(BufferSeekFlags.NoWait))
             {
                 Monitor.Exit(SyncRoot);
                 return null;
@@ -105,27 +129,45 @@ namespace Vicuna.Engine.Buffers
             Monitor.Exit(SyncRoot);
 
             //等待加载完成
-            buffer.Latch.ExitRead();
-            buffer.Latch.ExitRead();
+            buffer.Latch.EnterReadScope();
+            buffer.Latch.ExitReadScope();
 
             //加缓冲区锁,移动LRUList
             Monitor.Enter(SyncRoot);
 
-            MoveLRUBuffer(buffer, flags);
+            if (!flags.HasFlag(BufferSeekFlags.NoLRU))
+            {
+                MoveLRUEntry(buffer);
+            }
 
             Monitor.Exit(SyncRoot);
 
             return buffer;
         }
 
+        private BufferEntry CreateEntry(PagePosition pos, BufferState state = BufferState.NoneLoading)
+        {
+            if (Buffers.Count >= Options.LRULimit)
+            {
+                //Flush
+            }
+
+            return new BufferEntry(state, pos);
+        }
+
         private void LoadBufferPage(BufferEntry buffer)
         {
             buffer.Page = PageManager.ReadPage(buffer.Position);
             buffer.State = BufferState.Clean;
-            buffer.Latch.ExitWrite();
+            buffer.Latch.ExitWriteScope();
         }
 
-        private void AddLRUBuffer(BufferEntry buffer)
+        public void AddFlushEntry(BufferEntry buffer)
+        {
+            Flush.AddFirst(buffer);
+        }
+
+        private void AddLRUEntry(BufferEntry buffer)
         {
             if (LRU.Count >= Options.LRULimit)
             {
@@ -135,27 +177,9 @@ namespace Vicuna.Engine.Buffers
             LRU.AddFirst(buffer);
         }
 
-        public void AddFlushBuffer(BufferEntry entry)
+        private void MoveLRUEntry(BufferEntry buffer)
         {
-            Flush.AddFirst(entry);
-        }
-
-        private void MoveLRUBuffer(BufferEntry buffer, BufferPeekFlags flags)
-        {
-            if (!flags.HasFlag(BufferPeekFlags.KeepLRU))
-            {
-                LRU.MoveToFirst(buffer);
-            }
-        }
-
-        private BufferEntry CreateBuffer(PagePosition pos)
-        {
-            if (Buffers.Count >= Options.LRULimit)
-            {
-                //Flush
-            }
-
-            return new BufferEntry(BufferState.NoneLoading, pos);
+            LRU.MoveToFirst(buffer);
         }
     }
 }

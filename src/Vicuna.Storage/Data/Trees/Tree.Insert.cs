@@ -6,71 +6,48 @@ namespace Vicuna.Engine.Data.Trees
 {
     public partial class Tree
     {
-        public DBOperationFlags AddClusterEntry(LowLevelTransaction tx, Span<byte> key, Span<byte> value)
+        public DBOperationFlags AddClusterEntry(LowLevelTransaction tx, KVTuple kv)
         {
-            var cursor = GetCursorForUpdate(tx, key, -1);
-            if (cursor.LastMatch != 0 || cursor.IsBranch)
+            var cursor = GetCursorForUpdate(tx, kv.Key, -1);
+            if (cursor.LastMatch == 0)
             {
-                return AddClusterEntry(tx, cursor, key, value);
+                return UpdateClusterEntry(tx, cursor, kv);
             }
 
-            var flags = LockRec(tx, cursor, LockFlags.Exclusive | LockFlags.Document);
-            if (flags == DBOperationFlags.Success)
+            return AddClusterEntry(tx, cursor, kv);
+        }
+
+        protected DBOperationFlags AddClusterEntry(LowLevelTransaction tx, TreePageCursor cursor, KVTuple kv)
+        {
+            if (kv.Length > MaxEntrySizeInPage)
             {
-                return flags;
+                return AddClusterOverflowEntry(tx, cursor, kv);
             }
 
-            if (IsDuplicateKey(tx, cursor))
+            if (!cursor.Allocate(cursor.LastMatchIndex, (ushort) kv.Length, TreeNodeHeaderFlags.Primary, out var entry))
             {
-                throw new InvalidOperationException($"duplicate key for {key.ToString()}");
+                //SplitPage();
             }
 
-            return AddClusterEntry(tx, cursor, key, value);
+            ref var h = ref entry.Header;
+            ref var t = ref entry.Transaction;
+
+            kv.Key.CopyTo(entry.Key);
+            kv.Value.CopyTo(entry.Value);
+
+            h.IsDeleted = false;
+            h.KeySize = (ushort) kv.Key.Length;
+            h.DataSize = (ushort) kv.Value.Length;
+            h.NodeFlags = TreeNodeHeaderFlags.Primary;
+            t.TransactionNumber = tx.Id;
+            t.TransactionRollbackNumber = -1;
+
+            return DBOperationFlags.Ok;
         }
 
-        /// <summary>
-        /// add clusterd k-v
-        /// </summary>
-        /// <param name="tx"></param>
-        /// <param name="cursor"></param>
-        /// <param name="key"></param>
-        /// <param name="value"></param>
-        /// <returns></returns>
-        protected DBOperationFlags AddClusterEntry(LowLevelTransaction tx, TreePageCursor cursor, Span<byte> key, Span<byte> value)
+        protected DBOperationFlags AddClusterOverflowEntry(LowLevelTransaction tx, TreePageCursor cursor, KVTuple kv)
         {
-            return DBOperationFlags.Success;
-        }
-
-        /// <summary>
-        /// </summary>
-        /// <param name="tx"></param>
-        /// <param name="cursor"></param>
-        /// <param name="flags"></param>
-        /// <returns></returns>
-        protected DBOperationFlags LockRec(LowLevelTransaction tx, TreePageCursor cursor, LockFlags flags)
-        {
-            var req = new LockRequest()
-            {
-                Flags = flags,
-                Index = Index,
-                Position = cursor.Current.Position,
-                Transaction = tx.Transaction,
-                RecordSlot = cursor.LastMatchIndex,
-                RecordCount = cursor.TreeHeader.Count,
-            };
-
-            return EngineEnviorment.LockManager.Lock(ref req);
-        }
-
-        /// <summary>
-        /// check if the key is duplicated
-        /// </summary>
-        /// <param name="tx"></param>
-        /// <param name="cursor"></param>
-        /// <returns></returns>
-        protected bool IsDuplicateKey(LowLevelTransaction tx, TreePageCursor cursor)
-        {
-            return Index.IsUnique && !cursor.GetNodeHeader(cursor.LastMatchIndex).IsDeleted;
+            return DBOperationFlags.Ok;
         }
     }
 }

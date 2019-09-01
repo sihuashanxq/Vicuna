@@ -2,12 +2,12 @@
 {
     public enum DBOperationFlags
     {
-        Error,
+        Ok,
 
-        Success,
+        Err,
 
-        Waitting,
+        Wait,
 
-        DeadLock
+        Dead
     }
 }

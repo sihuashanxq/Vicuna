@@ -35,9 +35,9 @@ namespace Vicuna.Engine.Data.Trees
             {
                 switch (Header.NodeFlags)
                 {
-                    case TreeNodeHeaderFlags.Data:
+                    case TreeNodeHeaderFlags.Primary:
                         return Data.Slice(TreeNodeHeader.SizeOf + Header.KeySize + TreeNodeTransactionHeader.SizeOf, Header.DataSize);
-                    case TreeNodeHeaderFlags.DataRefrence:
+                    case TreeNodeHeaderFlags.Data:
                         return Data.Slice(TreeNodeHeader.SizeOf + Header.KeySize, Header.DataSize);
                     default:
                         return Span<byte>.Empty;
@@ -54,7 +54,7 @@ namespace Vicuna.Engine.Data.Trees
         {
             get
             {
-                if (Header.NodeFlags != TreeNodeHeaderFlags.Data)
+                if (Header.NodeFlags != TreeNodeHeaderFlags.Primary)
                 {
                     throw new InvalidOperationException($"only data node has tx header!");
                 }

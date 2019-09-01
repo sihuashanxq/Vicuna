@@ -1,5 +1,7 @@
 ﻿using System;
 using System.IO;
+using Vicuna.Engine.Locking;
+using Vicuna.Engine.Paging;
 
 namespace Vicuna.Engine.Storages
 {
@@ -9,24 +11,27 @@ namespace Vicuna.Engine.Storages
 
         public int Id { get; }
 
-        public object SyncRoot { get; }
-
         public FileStream Stream { get; }
+
+        public LatchEntry Latch { get; }
+
+        public PagePosition Root { get; }
 
         public string Name => Stream.Name;
 
         public long Length => Stream.Length;
 
-        public File(int id, FileStream fileStream)
+        public File(int id, FileStream stream)
         {
             Id = id;
-            SyncRoot = new object();
-            Stream = fileStream ?? throw new ArgumentNullException(nameof(fileStream));
+            Root = new PagePosition(id, 0);
+            Latch = new LatchEntry(this);
+            Stream = stream ?? throw new ArgumentNullException(nameof(stream));
         }
 
         public virtual void Flush(bool flushToDisk = false)
         {
-            lock (SyncRoot)
+            lock (this)
             {
                 Stream.Flush(flushToDisk);
             }
@@ -34,7 +39,7 @@ namespace Vicuna.Engine.Storages
 
         public void Truncate(long length)
         {
-            lock (SyncRoot)
+            lock (this)
             {
                 if (length > Length)
                 {
@@ -50,7 +55,7 @@ namespace Vicuna.Engine.Storages
 
         public long AddLength(long len)
         {
-            lock (SyncRoot)
+            lock (this)
             {
                 if (len < Constants.MB * 16)
                 {
@@ -84,7 +89,7 @@ namespace Vicuna.Engine.Storages
 
         public void Read(long pos, Span<byte> buffer)
         {
-            lock (SyncRoot)
+            lock (this)
             {
                 if (pos < 0 || buffer.Length < 0 || pos + buffer.Length > Length)
                 {
@@ -97,7 +102,7 @@ namespace Vicuna.Engine.Storages
 
         public void Write(long pos, Span<byte> buffer)
         {
-            lock (SyncRoot)
+            lock (this)
             {
                 if (pos < 0 || buffer.Length < 0 || pos + buffer.Length > Length)
                 {
@@ -110,7 +115,7 @@ namespace Vicuna.Engine.Storages
 
         public void Write(long pos, byte[] buffer, int offset, int len)
         {
-            lock (SyncRoot)
+            lock (this)
             {
                 if (buffer == null)
                 {

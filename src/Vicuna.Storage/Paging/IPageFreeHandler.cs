@@ -2,8 +2,8 @@
 {
     public interface IPageFreeHandler
     {
-        void Release(ReleaseContext ctx);
+        //void Release(ReleaseContext ctx);
 
-        int Allocate(AllocationContext ctx, PagePosition[] pos);
+        //int Allocate(AllocPageContext ctx, PagePosition[] pos);
     }
 }

@@ -1,9 +1,9 @@
 ﻿using System.Runtime.InteropServices;
 
-namespace Vicuna.Engine.Data.Trees
+namespace Vicuna.Engine.Data.Trees.Fixed
 {
     [StructLayout(LayoutKind.Explicit, Pack = 1, Size = SizeOf)]
-    public unsafe struct TreePageHeader
+    public unsafe struct FreeFixedTreePageHeader
     {
         internal const int SizeOf = 96;
 
@@ -26,24 +26,15 @@ namespace Vicuna.Engine.Data.Trees
         public long NextPageNumber;
 
         [FieldOffset(37)]
-        public ushort Low;
-
-        [FieldOffset(39)]
-        public ushort Upper;
-
-        [FieldOffset(41)]
         public ushort Count;
 
-        [FieldOffset(43)]
-        public ushort UsedSize;
+        [FieldOffset(39)]
+        public byte DataElementSize;
 
-        [FieldOffset(45)]
+        [FieldOffset(40)]
         public TreeNodeFlags NodeFlags;
 
-        [FieldOffset(46)]
-        public long LastTransactionId;
-
-        [FieldOffset(54)]
-        public fixed byte Reserved[SizeOf - 53 - 1];
+        [FieldOffset(41)]
+        public fixed byte Reserved[SizeOf - 41];
     }
 }

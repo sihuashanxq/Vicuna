@@ -3,7 +3,7 @@ using System.Threading;
 
 namespace Vicuna.Engine.Locking
 {
-    public class LatchReleaserEntry : IDisposable
+    public class LatchScope : IDisposable
     {
         const int Released = 1;
 
@@ -15,7 +15,7 @@ namespace Vicuna.Engine.Locking
 
         public LatchEntry Latch { get; }
 
-        public LatchReleaserEntry(LatchEntry latch, LatchFlags flags)
+        public LatchScope(LatchEntry latch, LatchFlags flags)
         {
             Flags = flags;
             Latch = latch ?? throw new ArgumentNullException(nameof(latch));
@@ -28,13 +28,13 @@ namespace Vicuna.Engine.Locking
                 switch (Flags)
                 {
                     case LatchFlags.Read:
-                        Latch.ExitRead();
+                        Latch.ExitReadScope();
                         break;
                     case LatchFlags.Write:
-                        Latch.ExitWrite();
+                        Latch.ExitWriteScope();
                         break;
                 }
-            }
+            } 
         }
     }
 }

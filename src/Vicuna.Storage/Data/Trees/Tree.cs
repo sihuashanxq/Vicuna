@@ -29,6 +29,8 @@ namespace Vicuna.Engine.Data.Trees
 
         public PagePosition Root { get; }
 
+        public const ushort MaxEntrySizeInPage = (Constants.PageSize - Constants.PageHeaderSize - Constants.PageTailerSize) / 2 - TreeNodeHeader.SizeOf - TreeNodeTransactionHeader.SizeOf;
+
         public Tree(PagePosition root)
         {
             Root = root;

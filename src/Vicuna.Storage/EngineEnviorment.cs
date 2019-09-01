@@ -1,5 +1,6 @@
 ﻿using System.Collections.Generic;
 using Vicuna.Engine.Locking;
+using Vicuna.Engine.Paging;
 using Vicuna.Engine.Transactions;
 
 namespace Vicuna.Engine
@@ -9,11 +10,22 @@ namespace Vicuna.Engine
         static EngineEnviorment()
         {
             LockManager = new LockManager();
+            PageManager = new PageManager(null, null);
+            TransManager = new TransactionManager();
             Transactions = new Dictionary<long, Transaction>();
         }
 
+        public static PageManager PageManager { get; }
+
         public static LockManager LockManager { get; }
 
+        public static TransactionManager TransManager { get; }
+
         public static Dictionary<long, Transaction> Transactions { get; }
+    }
+
+    public class TransactionManager
+    {
+
     }
 }

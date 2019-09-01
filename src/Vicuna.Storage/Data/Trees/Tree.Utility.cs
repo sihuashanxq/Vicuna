@@ -2,6 +2,7 @@
 using System.Diagnostics;
 using System.Runtime.CompilerServices;
 using Vicuna.Engine.Buffers;
+using Vicuna.Engine.Locking;
 using Vicuna.Engine.Paging;
 using Vicuna.Engine.Transactions;
 
@@ -21,10 +22,30 @@ namespace Vicuna.Engine.Data.Trees
             return buffer.Page.Header.Cast<TreePageHeader>().NodeFlags.HasFlag(TreeNodeFlags.Branch);
         }
 
+        protected long BackUpUndoEntry(LowLevelTransaction tx, TreePageCursor cursor, int index)
+        {
+            return -1;
+        }
+
+        protected DBOperationFlags LockRec(LowLevelTransaction tx, TreePageCursor cursor, LockFlags flags)
+        {
+            var req = new LockRequest()
+            {
+                Flags = flags,
+                Index = Index,
+                Position = cursor.Current.Position,
+                Transaction = tx.Transaction,
+                RecordSlot = cursor.LastMatchIndex,
+                RecordCount = cursor.TreeHeader.Count,
+            };
+
+            return EngineEnviorment.LockManager.Lock(ref req);
+        }
+
         private BufferEntry GetBufferForKey(LowLevelTransaction ttx, Span<byte> key, int target, out int level)
         {
             var count = 0;
-            var buffer = ttx.Buffers.GetBuffer(Root);
+            var buffer = ttx.Buffers.GetEntry(Root);
 
             using (var tx = ttx.StartNew())
             {
@@ -41,7 +62,7 @@ namespace Vicuna.Engine.Data.Trees
 
                     cursor.Search(key);
                     match = cursor.GetLastMatchedPage();
-                    buffer = tx.Buffers.GetBuffer(match);
+                    buffer = tx.Buffers.GetEntry(match);
 
                     count++;
                 }

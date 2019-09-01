@@ -1,4 +1,5 @@
 ﻿using System.Runtime.InteropServices;
+using Vicuna.Engine.Data.Trees;
 
 namespace Vicuna.Engine.Paging
 {
@@ -11,15 +12,12 @@ namespace Vicuna.Engine.Paging
         public PageHeaderFlags Flags;
 
         [FieldOffset(1)]
-        public int StorageId;
+        public int FileId;
 
         [FieldOffset(5)]
         public long PageNumber;
 
         [FieldOffset(13)]
         public long LSN;
-
-        [FieldOffset(21)]
-        public fixed byte Resvered[SizeOf - 21 - 1];
     }
 }

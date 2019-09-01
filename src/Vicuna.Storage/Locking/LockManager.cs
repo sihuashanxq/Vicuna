@@ -40,7 +40,7 @@ namespace Vicuna.Engine.Locking
         {
             if (entry == null)
             {
-                return DBOperationFlags.Success;
+                return DBOperationFlags.Ok;
             }
 
             var list = entry.GNode.List;
@@ -88,7 +88,7 @@ namespace Vicuna.Engine.Locking
                 next = FindNextLockEntry(next);
             }
 
-            return DBOperationFlags.Success;
+            return DBOperationFlags.Ok;
         }
 
         /// <summary>
@@ -121,7 +121,7 @@ namespace Vicuna.Engine.Locking
                 next = FindNextLockEntry(next);
             }
 
-            return DBOperationFlags.Success;
+            return DBOperationFlags.Ok;
         }
 
         /// <summary>
@@ -265,12 +265,12 @@ namespace Vicuna.Engine.Locking
             if (locks == null || locks.Count == 0)
             {
                 entry = CreateRecLock(ref req);
-                return DBOperationFlags.Success;
+                return DBOperationFlags.Ok;
             }
 
             if (IsHeldRecLock(ref req, out entry))
             {
-                return DBOperationFlags.Success;
+                return DBOperationFlags.Ok;
             }
 
             if (IsOthersHeldOrWaitConflictRecLock(req.Transaction, req.Position, req.RecordSlot, req.Flags))
@@ -280,7 +280,7 @@ namespace Vicuna.Engine.Locking
             }
 
             entry = GetCanReuseRecLock(ref req) ?? CreateRecLock(ref req);
-            return DBOperationFlags.Success;
+            return DBOperationFlags.Ok;
         }
 
         /// <summary>
@@ -295,12 +295,12 @@ namespace Vicuna.Engine.Locking
             if (locks == null || locks.Count == 0)
             {
                 entry = CreateTabLock(ref req);
-                return DBOperationFlags.Success;
+                return DBOperationFlags.Ok;
             }
 
             if (IsHeldTabLock(ref req, out entry))
             {
-                return DBOperationFlags.Success;
+                return DBOperationFlags.Ok;
             }
 
             if (IsOthersHeldOrWaitConflictTabLock(req.Transaction, req.Index, req.Flags))
@@ -310,7 +310,7 @@ namespace Vicuna.Engine.Locking
             }
 
             entry = CreateTabLock(ref req);
-            return DBOperationFlags.Success;
+            return DBOperationFlags.Ok;
         }
 
         /// <summary>
@@ -573,11 +573,11 @@ namespace Vicuna.Engine.Locking
                 entry.Flags &= ~LockFlags.Waiting;
                 entry.SetBit(req.RecordSlot, 0);
                 entry.Transaction.WaitLock = null;
-                return DBOperationFlags.DeadLock;
+                return DBOperationFlags.Dead;
             }
 
             entry.Transaction.WaitEvent.Reset();
-            return DBOperationFlags.Waitting;
+            return DBOperationFlags.Wait;
         }
 
         /// <summary>
@@ -603,11 +603,11 @@ namespace Vicuna.Engine.Locking
             {
                 entry.Flags &= ~LockFlags.Waiting;
                 entry.Transaction.WaitLock = null;
-                return DBOperationFlags.DeadLock;
+                return DBOperationFlags.Dead;
             }
 
             entry.Transaction.WaitEvent.Reset();
-            return DBOperationFlags.Waitting;
+            return DBOperationFlags.Wait;
         }
 
         /// <summary>

@@ -1,5 +1,4 @@
-﻿using System.Diagnostics;
-using System.Runtime.CompilerServices;
+﻿using System.Runtime.CompilerServices;
 using System.Threading;
 
 namespace Vicuna.Engine.Locking
@@ -54,26 +53,26 @@ namespace Vicuna.Engine.Locking
             get => _internalLock.IsWriteLockHeld;
         }
 
-        public void ExitRead()
+        public void ExitReadScope()
         {
             _internalLock.ExitReadLock();
         }
 
-        public void ExitWrite()
+        public void ExitWriteScope()
         {
             _internalLock.ExitWriteLock();
         }
 
-        public LatchReleaserEntry EnterRead()
+        public LatchScope EnterReadScope()
         {
             _internalLock.ExitReadLock();
-            return new LatchReleaserEntry(this, LatchFlags.Read);
+            return new LatchScope(this, LatchFlags.Read);
         }
 
-        public LatchReleaserEntry EnterWrite()
+        public LatchScope EnterWriteScope()
         {
             _internalLock.ExitReadLock();
-            return new LatchReleaserEntry(this, LatchFlags.Write);
+            return new LatchScope(this, LatchFlags.Write);
         }
     }
 }
