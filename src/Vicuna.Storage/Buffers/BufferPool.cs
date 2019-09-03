@@ -157,7 +157,8 @@ namespace Vicuna.Engine.Buffers
 
         private void LoadBufferPage(BufferEntry buffer)
         {
-            buffer.Page = PageManager.ReadPage(buffer.Position);
+            buffer.Page = new Page(new byte[16 * 1024]); 
+            //buffer.Page = PageManager.ReadPage(buffer.Position);
             buffer.State = BufferState.Clean;
             buffer.Latch.ExitWriteScope();
         }

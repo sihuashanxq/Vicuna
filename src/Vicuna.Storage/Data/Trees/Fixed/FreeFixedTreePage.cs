@@ -1,23 +1,24 @@
 ﻿using System;
 using System.Runtime.CompilerServices;
 using Vicuna.Engine.Paging;
-using Vicuna.Engine.Transactions;
 
 namespace Vicuna.Engine.Data.Trees.Fixed
 {
     public class FreeFixedTreePage : Page
     {
-        public int Level;
-
         public int LastMatch;
 
         public int LastMatchIndex;
 
-        public FreeFixedTreePage(byte[] data, int level) : base(data)
+        public FreeFixedTreePage(byte[] data) : base(data)
         {
-            Level = level;
             LastMatch = 0;
             LastMatchIndex = -1;
+        }
+
+        public int Depth
+        {
+            get => FixedHeader.Depth;
         }
 
         public bool IsLeaf
@@ -120,78 +121,80 @@ namespace Vicuna.Engine.Data.Trees.Fixed
             return entry;
         }
 
-        public void Search(long target)
+        public PagePosition FindPage(long key)
+        {
+            Search(key);
+            return GetLastMatchedPage();
+        }
+
+        public int SearchForAdd(long key)
+        {
+            Search(key);
+            LastMatchIndex = IsLeaf && FixedHeader.Count != 0 && LastMatch <= 0 ? LastMatchIndex + 1 : LastMatchIndex;
+            return LastMatch;
+        }
+
+        public void Search(long key)
         {
             var count = IsLeaf ? FixedHeader.Count : FixedHeader.Count - 1;
             if (count <= 0)
             {
-                LastMatch = 0;
+                LastMatch = 1;
                 LastMatchIndex = 0;
                 return;
             }
 
             //>last
-            if (target > LastKey)
+            if (key > LastKey)
             {
-                LastMatch = IsBranch ? 0 : 1;
+                LastMatch = IsBranch ? 0 : -1;
                 LastMatchIndex = IsBranch ? count : count - 1;
                 return;
             }
 
             //<first
-            if (target < FirstKey)
+            if (key < FirstKey)
             {
-                LastMatch = IsBranch ? 0 : -1;
+                LastMatch = IsBranch ? 0 : 1;
                 LastMatchIndex = 0;
                 return;
             }
 
-            BinarySearch(target, 0, count - 1);
-        }
-
-        public PagePosition SearchPage(long target)
-        {
-            Search(target);
-            return GetLastMatchedPage();
+            BinarySearch(key, 0, count - 1);
         }
 
         public void BinarySearch(long target, int first, int last)
         {
-            var end = last;
-            var start = first;
-
-            while (first < last)
+            while (first <= last)
             {
                 var mid = first + (last - first) / 2;
                 var key = GetNodeKey(mid);
-                var flag = target.CompareTo(key);
-                if (flag > 0)
+                var flag = key.CompareTo(target);
+                if (flag == 0)
+                {
+                    LastMatch = 0;
+                    LastMatchIndex = mid;
+                    break;
+                }
+
+                if (flag == -1)
                 {
                     first = mid + 1;
-                }
-                else if (flag < 0)
-                {
-                    last = mid - 1;
+                    LastMatch = -1;
+                    LastMatchIndex = mid;
                 }
                 else
                 {
-                    first = mid + 1;
+                    last = mid - 1;
+                    LastMatch = 1;
+                    LastMatchIndex = mid;
                 }
-
-                LastMatch = flag;
-                LastMatchIndex = mid;
             }
-
-            LastMatchIndex = LastMatch == 0 && first > start ? first - 1 : first;
 
             if (IsBranch)
             {
+                LastMatchIndex = LastMatch <= 0 ? LastMatchIndex + 1 : LastMatchIndex;
                 LastMatch = 0;
-                LastMatchIndex += 1;
-            }
-            else
-            {
-                LastMatch = target.CompareTo(GetNodeKey(LastMatchIndex));
             }
         }
 
@@ -203,7 +206,7 @@ namespace Vicuna.Engine.Data.Trees.Fixed
             var len = count * GetNodeSize(ref fixedHeader);
 
             var from = ReadAt(ptr, len);
-            var to = ReadAt(Constants.PageHeaderSize, len);
+            var to = page.ReadAt(Constants.PageHeaderSize, len);
 
             from.CopyTo(to);
             from.Clear();
@@ -221,28 +224,18 @@ namespace Vicuna.Engine.Data.Trees.Fixed
                 return long.MinValue;
             }
 
-            if (index >= fixedHeader.Count || index < 0)
-            {
-                throw new ArgumentOutOfRangeException(nameof(index));
-            }
-
             var ptr = GetNodePtr(index);
-            if (ptr + TreeNodeHeader.SizeOf > Constants.PageSize - Constants.PageTailerSize)
+            if (ptr + FreeFixedTreeNodeHeader.SizeOf > Constants.PageSize - Constants.PageTailerSize)
             {
                 throw new PageCorruptedException(this);
             }
 
-            return ReadAt<long>(ptr, sizeof(long));
+            return ReadAt<FreeFixedTreeNodeHeader>(ptr, FreeFixedTreeNodeHeader.SizeOf).PageNumber;
         }
 
         [MethodImpl(MethodImplOptions.AggressiveInlining)]
         public ushort GetNodePtr(int index)
         {
-            if (index >= FixedHeader.Count || index < 0)
-            {
-                throw new ArgumentOutOfRangeException(nameof(index));
-            }
-
             return (ushort)(index * (FixedHeader.DataElementSize + FreeFixedTreeNodeHeader.SizeOf) + Constants.PageHeaderSize);
         }
 
@@ -260,8 +253,8 @@ namespace Vicuna.Engine.Data.Trees.Fixed
                 throw new ArgumentOutOfRangeException(nameof(index));
             }
 
-            var ptr = GetNodePtr(index);
-            if (ptr + fixedHeader.DataElementSize + FreeFixedTreeNodeHeader.SizeOf > Constants.PageSize - Constants.PageTailerSize)
+            var ptr = GetNodePtr(index) + FreeFixedTreeNodeHeader.SizeOf;
+            if (ptr + fixedHeader.DataElementSize > Constants.PageSize - Constants.PageTailerSize)
             {
                 throw new PageCorruptedException(this);
             }
@@ -278,7 +271,7 @@ namespace Vicuna.Engine.Data.Trees.Fixed
         [MethodImpl(MethodImplOptions.AggressiveInlining)]
         public ref FreeFixedTreeNodeHeader GetNodeHeader(int index)
         {
-            var ptr = GetNodePtr(LastMatchIndex);
+            var ptr = GetNodePtr(index);
             if (ptr > Constants.PageSize - Constants.PageTailerSize ||
                 ptr < Constants.PageHeaderSize)
             {
@@ -288,10 +281,30 @@ namespace Vicuna.Engine.Data.Trees.Fixed
             return ref GetNodeHeader(ptr);
         }
 
+        public FreeFixedTreeNodeEntry GetNodeEntry(int index)
+        {
+            ref var fixedHeader = ref FixedHeader;
+            var ptr = GetNodePtr(index);
+            if (ptr > Constants.PageSize - Constants.PageTailerSize ||
+                ptr < Constants.PageHeaderSize)
+            {
+                throw new PageCorruptedException(this);
+            }
+
+            return new FreeFixedTreeNodeEntry()
+            {
+                Index = (short)index,
+                Buffer = ReadAt(ptr, GetNodeSize(ref fixedHeader)),
+                DataSize = fixedHeader.DataElementSize,
+                IsBranch = IsBranch
+            };
+        }
+
+
         [MethodImpl(MethodImplOptions.AggressiveInlining)]
         public int GetNodeSize(ref FreeFixedTreePageHeader fixeHeader)
         {
-            return fixeHeader.DataElementSize + FreeFixedTreePageHeader.SizeOf;
+            return fixeHeader.DataElementSize + FreeFixedTreeNodeHeader.SizeOf;
         }
 
         [MethodImpl(MethodImplOptions.AggressiveInlining)]
@@ -315,10 +328,13 @@ namespace Vicuna.Engine.Data.Trees.Fixed
                 throw new InvalidOperationException("must invoke the Search method before inovke the GetLastMatchedPage method!");
             }
 
-            return new PagePosition(Position.FileId, GetNodeHeader(LastMatchIndex).PageNumber);
+            var data = GetNodeData(LastMatchIndex);
+            var pageNumber = Unsafe.As<byte, long>(ref data[0]);
+
+            return new PagePosition(Position.FileId, pageNumber);
         }
 
-        public void InitPage(LowLevelTransaction lltx, int fileId, long pageNumber, TreeNodeFlags flags, byte dataElementSize)
+        public void InitPage(int fileId, long pageNumber, int depth, TreeNodeFlags flags, byte dataElementSize)
         {
             ref var fixedHeader = ref FixedHeader;
             var lsn = fixedHeader.LSN;
@@ -334,6 +350,7 @@ namespace Vicuna.Engine.Data.Trees.Fixed
             fixedHeader.NextPageNumber = -1;
             fixedHeader.Flags = PageHeaderFlags.BTree;
             fixedHeader.LSN = lsn;
+            fixedHeader.Depth = depth;
         }
     }
 }

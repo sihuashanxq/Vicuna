@@ -1,102 +1,163 @@
 ﻿using System;
-using System.Collections.Generic;
-using System.Diagnostics;
+using System.Runtime.CompilerServices;
 using Vicuna.Engine.Transactions;
 
 namespace Vicuna.Engine.Data.Trees.Fixed
 {
     public partial class FreeFixedTree
     {
-        public DBOperationFlags SplitLeafPage(LowLevelTransaction lltx, FreeFixedTreePage left, long pageNumber, int index)
+        private SplitContext SplitLeaf(LowLevelTransaction lltx, FreeFixedTreePage current, long pageNumber, int index)
         {
-            Debug.Assert(left.IsLeaf);
-
-            var ctx = new FreeFixedFreeSplitContext()
+            if (!current.IsLeaf)
             {
-                Left = left,
-                Index = index
+                throw new InvalidOperationException($"page:{current.Position} is not a leaf page");
+            }
+
+            ref var header = ref current.FixedHeader;
+            var ctx = new SplitContext()
+            {
+                Index = index,
+                Leaf = current,
+                Current = current,
+                Sibling = CreatePage(lltx, current.Depth, header.FileId, pageNumber, header.NodeFlags & (~TreeNodeFlags.Root), header.DataElementSize),
+                OldSibling = ModifyPage(lltx, header.FileId, header.NextPageNumber)
             };
-            ref var fixedHeader = ref left.FixedHeader;
 
-            ctx.Right = lltx.ModifyPage(fixedHeader.FileId, pageNumber).AsFixed(left.Level);
-            ctx.Right.InitPage(lltx, fixedHeader.FileId, pageNumber, fixedHeader.NodeFlags, fixedHeader.DataElementSize);
-            ctx.OldRight = fixedHeader.NextPageNumber == -1 ?
-                null :
-                lltx.ModifyPage(fixedHeader.FileId, fixedHeader.NextPageNumber).AsFixed(left.Level);
+            if (ctx.Current.IsRoot)
+            {
+                SplitRoot(lltx, ref ctx);
+            }
+            else
+            {
+                SplitPage(lltx, ref ctx);
+            }
 
-            return ctx.Left.IsRoot ? SplitRootLeaf(lltx, ref ctx) : SplitLeafPage(lltx, ref ctx);
+            return ctx;
         }
 
-        public DBOperationFlags SplitRootLeaf(LowLevelTransaction lltx, ref FreeFixedFreeSplitContext ctx)
+        private SplitContext SplitBranch(LowLevelTransaction lltx, FreeFixedTreePage current, FreeFixedTreePage leaf, int index)
         {
-            return DBOperationFlags.Ok;
+            if (!current.IsBranch)
+            {
+                throw new InvalidOperationException($"page:{current.Position} is not a branch page");
+            }
+
+            ref var header = ref current.FixedHeader;
+            var entry = leaf.Remove(leaf.FixedHeader.Count - 1);
+            var ctx = new SplitContext()
+            {
+                Index = index,
+                Leaf = leaf,
+                Current = current,
+                Sibling = CreatePage(lltx, current.Depth, header.FileId, entry.Key, header.NodeFlags & (~TreeNodeFlags.Root), header.DataElementSize),
+                OldSibling = ModifyPage(lltx, header.FileId, header.NextPageNumber)
+            };
+
+            if (!current.IsRoot)
+            {
+                SplitPage(lltx, ref ctx);
+            }
+            else
+            {
+                SplitRoot(lltx, ref ctx);
+            }
+
+            return ctx;
         }
 
-        public DBOperationFlags SplitLeafPage(LowLevelTransaction lltx, ref FreeFixedFreeSplitContext ctx)
+        private void SplitRoot(LowLevelTransaction lltx, ref SplitContext ctx)
         {
-            Debug.Assert(!ctx.Left.IsRoot && ctx.Left.Level != 0);
+            var root = ctx.Current;
+            var entry = ctx.Leaf.Remove(ctx.Leaf.FixedHeader.Count - 1);
 
-            ctx.Left.CopyEntriesTo(ctx.Right, ctx.Index);
-            ctx.Left.FixedHeader.NextPageNumber = ctx.Right.FixedHeader.PageNumber;
-            ctx.Right.FixedHeader.PrevPageNumber = ctx.Left.FixedHeader.PageNumber;
+            ctx.Parent = root;
+            ctx.Current = CreatePage(
+                 lltx,
+                 root.Depth,
+                 root.Position.FileId,
+                 entry.Key,
+                 root.FixedHeader.NodeFlags & (~TreeNodeFlags.Root),
+                 root.FixedHeader.DataElementSize
+             );
 
-            if (ctx.OldRight != null)
-            {
-                ctx.OldRight.FixedHeader.PrevPageNumber = ctx.Right.FixedHeader.PageNumber;
-            }
+            root.CopyEntriesTo(ctx.Current, 0);
+            root.FixedHeader.NodeFlags = TreeNodeFlags.Branch | TreeNodeFlags.Root;
+            root.FixedHeader.Depth--;
+            root.FixedHeader.DataElementSize = sizeof(long);
 
-            //TODO:Log
-            var parent = GetPageForUpdate(lltx, ctx.Right.FirstKey, ctx.Right.Level - 1);
-            if (parent == null)
-            {
-                throw new NullReferenceException(nameof(parent));
-            }
-
-            parent.Search(ctx.Right.FirstKey);
-            return SplitLeafPage(lltx, ref ctx, parent);
+            SplitPage(lltx, ref ctx);
         }
 
-        public DBOperationFlags SplitLeafPage(LowLevelTransaction lltx, ref FreeFixedFreeSplitContext ctx, FreeFixedTreePage parent)
+        private void SplitPage(LowLevelTransaction lltx, ref SplitContext ctx)
         {
-            if (parent.FixedHeader.Count == 0)
+            ctx.Sibling.FixedHeader.PrevPageNumber = ctx.Current.FixedHeader.PageNumber;
+            ctx.Current.FixedHeader.NextPageNumber = ctx.Sibling.FixedHeader.PageNumber;
+            ctx.Current.CopyEntriesTo(ctx.Sibling, ctx.Index);
+
+            if (ctx.OldSibling != null)
             {
-                parent.Alloc(0, out var e1);
-                parent.Alloc(1, out var e2);
-
-                e1.Key = ctx.Right.FirstKey;
-                e1.PageNumber = ctx.Left.Header.PageNumber;
-
-                e2.Key = long.MaxValue;
-                e2.PageNumber = ctx.Right.Header.PageNumber;
-
-                return DBOperationFlags.Ok;
+                ctx.OldSibling.FixedHeader.PrevPageNumber = ctx.Sibling.FixedHeader.PageNumber;
             }
 
-            if (!parent.Alloc(parent.LastMatchIndex, out var e3))
+            var key = ctx.Current.IsLeaf ? ctx.Sibling.FirstKey : ctx.Current.GetNodeEntry(ctx.Current.FixedHeader.Count - 1).Key;
+            if (ctx.Parent == null)
             {
-                //SplitBranch();
+                ctx.Parent = GetPageForUpdate(lltx, key, ctx.Sibling.Depth - 1);
             }
 
-            ref var e4 = ref parent.GetNodeHeader(parent.LastMatchIndex + 1);
-
-            e3.Key = ctx.Right.FirstKey;
-            e3.PageNumber = ctx.Left.Header.PageNumber;
-            e4.PageNumber = ctx.Right.Header.PageNumber;
-
-            return DBOperationFlags.Ok;
+            AddBranchEntry(lltx, ctx.Parent, ctx.Leaf, ctx.Current.FixedHeader.PageNumber, ctx.Sibling.FixedHeader.PageNumber, key);
         }
-    }
 
-    public ref struct FreeFixedFreeSplitContext
-    {
-        public int Index;
+        private FreeFixedTreePage ModifyPage(LowLevelTransaction lltx, int fileId, long pageNumber)
+        {
+            if (pageNumber < 0 || fileId < 0)
+            {
+                return null;
+            }
 
-        public FreeFixedTreePage Left;
+            return lltx.ModifyPage(fileId, pageNumber).AsFixed();
+        }
 
-        public FreeFixedTreePage Right;
+        private FreeFixedTreePage CreatePage(LowLevelTransaction lltx, int depth, int fileId, long pageNumber, TreeNodeFlags flags, byte dataSize)
+        {
+            var fixedPage = ModifyPage(lltx, fileId, pageNumber);
+            if (fixedPage == null)
+            {
+                throw new NullReferenceException(nameof(fixedPage));
+            }
 
-        public FreeFixedTreePage OldRight;
+            ref var fixedHeader = ref fixedPage.FixedHeader;
+            var lsn = fixedHeader.LSN;
 
-        public List<FreeFixedTreePage> Path;
+            Unsafe.InitBlock(ref fixedPage.Data[0], 0, Constants.PageHeaderSize);
+
+            fixedHeader.Count = 0;
+            fixedHeader.FileId = fileId;
+            fixedHeader.NodeFlags = flags;
+            fixedHeader.DataElementSize = dataSize;
+            fixedHeader.PageNumber = pageNumber;
+            fixedHeader.PrevPageNumber = -1;
+            fixedHeader.NextPageNumber = -1;
+            fixedHeader.Flags = PageHeaderFlags.BTree;
+            fixedHeader.LSN = lsn;
+            fixedHeader.Depth = depth;
+
+            return fixedPage;
+        }
+
+        protected struct SplitContext
+        {
+            public int Index;
+
+            public FreeFixedTreePage Leaf;
+
+            public FreeFixedTreePage Parent;
+
+            public FreeFixedTreePage Current;
+
+            public FreeFixedTreePage Sibling;
+
+            public FreeFixedTreePage OldSibling;
+        }
     }
 }

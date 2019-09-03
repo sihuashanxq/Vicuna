@@ -29,12 +29,15 @@ namespace Vicuna.Engine.Data.Trees.Fixed
         public ushort Count;
 
         [FieldOffset(39)]
+        public int Depth;
+
+        [FieldOffset(43)]
         public byte DataElementSize;
 
-        [FieldOffset(40)]
+        [FieldOffset(44)]
         public TreeNodeFlags NodeFlags;
 
-        [FieldOffset(41)]
-        public fixed byte Reserved[SizeOf - 41];
+        [FieldOffset(45)]
+        public fixed byte Reserved[SizeOf - 45];
     }
 }

@@ -20,66 +20,64 @@ namespace Vicuna.Engine.Data.Trees.Fixed
             return buffer.Page.Header.Cast<FreeFixedTreePageHeader>().NodeFlags.HasFlag(TreeNodeFlags.Branch);
         }
 
-        private BufferEntry GetBufferForKey(LowLevelTransaction lltx, long key, int target, out int level)
+        private BufferEntry GetBufferForKey(LowLevelTransaction lltx, long key, int level)
         {
-            var i = 0;
             var buffer = lltx.Buffers.GetEntry(Root.FileId, Root.PageNumber);
 
             using (var tx = lltx.StartNew())
             {
                 while (true)
                 {
-                    if (IsLeaf(buffer) || target == i)
+                    if (IsLeaf(buffer))
                     {
                         break;
                     }
 
-                    var page = tx.GetPage(buffer).AsFixed(i);
-                    var next = page.SearchPage(key);
+                    var fixedPage = tx.GetPage(buffer).AsFixed();
+                    if (fixedPage.Depth == level)
+                    {
+                        break;
+                    }
 
-                    buffer = tx.Buffers.GetEntry(next);
-                    i++;
+                    buffer = tx.Buffers.GetEntry(fixedPage.FindPage(key));
                 }
             }
 
-            level = i;
             return buffer;
         }
 
-        private FreeFixedTreePage GetPageForUpdate(LowLevelTransaction lltx, long key, int target = -1)
+        private FreeFixedTreePage GetPageForUpdate(LowLevelTransaction lltx, long key, int level)
         {
-            var buffer = GetBufferForKey(lltx, key, target, out var level);
+            var buffer = GetBufferForKey(lltx, key, level);
             if (buffer == null)
             {
                 throw new NullReferenceException($"can't find a page for the key:{key.ToString()}");
             }
 
-            var page = lltx.ModifyPage(buffer).AsFixed(level);
-            if (page == null)
+            var fixedPage = lltx.ModifyPage(buffer).AsFixed();
+            if (fixedPage == null)
             {
-                throw new NullReferenceException(nameof(page));
+                throw new NullReferenceException(nameof(fixedPage));
             }
 
-            page.Search(key);
-            return page;
+            return fixedPage;
         }
 
-        private FreeFixedTreePage GetCursorForQuery(LowLevelTransaction lltx, long key, int target = -1, TreeNodeFetchMode mode = TreeNodeFetchMode.Lte)
+        private FreeFixedTreePage GetPageForQuery(LowLevelTransaction lltx, long key, int level, TreeNodeFetchMode mode = TreeNodeFetchMode.Lte)
         {
-            var buffer = GetBufferForKey(lltx, key, target, out var level);
+            var buffer = GetBufferForKey(lltx, key, level);
             if (buffer == null)
             {
                 throw new NullReferenceException($"can't find a page for the key:{key.ToString()}");
             }
 
-            var page = lltx.GetPage(buffer).AsFixed(level);
-            if (page == null)
+            var fixedPage = lltx.GetPage(buffer).AsFixed();
+            if (fixedPage == null)
             {
-                throw new NullReferenceException(nameof(page));
+                throw new NullReferenceException(nameof(fixedPage));
             }
 
-            page.Search(key);
-            return page;
+            return fixedPage;
         }
     }
 }

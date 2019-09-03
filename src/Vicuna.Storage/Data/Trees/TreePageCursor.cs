@@ -61,7 +61,7 @@ namespace Vicuna.Engine.Data.Trees
             }
 
             //>last
-            if (CompareKey(key, LastKey) > 0)
+            if (CompareKey(LastKey, key) > 0)
             {
                 LastMatch = IsBranch ? 0 : 1;
                 LastMatchIndex = IsBranch ? count : count - 1;
@@ -69,7 +69,7 @@ namespace Vicuna.Engine.Data.Trees
             }
 
             //<first
-            if (CompareKey(key, FirstKey) < 0)
+            if (CompareKey(FirstKey, key) < 0)
             {
                 LastMatch = IsBranch ? 0 : -1;
                 LastMatchIndex = 0;
@@ -89,7 +89,7 @@ namespace Vicuna.Engine.Data.Trees
             {
                 var mid = first + (last - first) / 2;
                 var key = GetNodeKey(mid);
-                var flag = CompareKey(giveKey, key);
+                var flag = CompareKey(key, giveKey);
                 if (flag > 0)
                 {
                     first = mid + 1;

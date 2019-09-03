@@ -6,6 +6,8 @@
 
         public const int MB = 1024 * KB;
 
+        public const int PageDepth = 1 << 20;
+
         public const int PageSize = 16 * KB;
 
         public const int PageTailerSize = 8;

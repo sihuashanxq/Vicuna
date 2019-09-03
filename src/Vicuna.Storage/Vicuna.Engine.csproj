@@ -17,11 +17,13 @@
   </PropertyGroup>
 
   <ItemGroup>
+    <Compile Remove="Data\Trees\Fixed\FreeFixedTree.Query.cs" />
     <Compile Remove="Data\Trees\Tree.Delete.cs" />
     <Compile Remove="Data\Trees\Tree.Query.cs" />
   </ItemGroup>
 
   <ItemGroup>
+    <None Include="Data\Trees\Fixed\FreeFixedTree.Query.cs" />
     <None Include="Data\Trees\Tree.Delete.cs" />
     <None Include="Data\Trees\Tree.Query.cs" />
   </ItemGroup>

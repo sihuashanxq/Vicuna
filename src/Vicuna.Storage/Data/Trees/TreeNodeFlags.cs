@@ -9,8 +9,8 @@ namespace Vicuna.Engine.Data.Trees
 
         Root = 1,
 
-        Leaf = 3,
+        Leaf = 2,
 
-        Branch = 3
+        Branch = 4
     }
 }

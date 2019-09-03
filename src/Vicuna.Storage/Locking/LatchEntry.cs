@@ -65,13 +65,13 @@ namespace Vicuna.Engine.Locking
 
         public LatchScope EnterReadScope()
         {
-            _internalLock.ExitReadLock();
+            _internalLock.EnterReadLock();
             return new LatchScope(this, LatchFlags.Read);
         }
 
         public LatchScope EnterWriteScope()
         {
-            _internalLock.ExitReadLock();
+            _internalLock.EnterWriteLock();
             return new LatchScope(this, LatchFlags.Write);
         }
     }
