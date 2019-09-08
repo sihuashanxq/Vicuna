@@ -53,13 +53,13 @@ namespace Vicuna.Engine.Data.Trees.Fixed
                 OldSibling = ModifyPage(lltx, header.FileId, header.NextPageNumber)
             };
 
-            if (!current.IsRoot)
+            if (current.IsRoot)
             {
-                SplitPage(lltx, ref ctx);
+                SplitRoot(lltx, ref ctx);
             }
             else
             {
-                SplitRoot(lltx, ref ctx);
+                SplitPage(lltx, ref ctx);
             }
 
             return ctx;
@@ -99,7 +99,9 @@ namespace Vicuna.Engine.Data.Trees.Fixed
                 ctx.OldSibling.FixedHeader.PrevPageNumber = ctx.Sibling.FixedHeader.PageNumber;
             }
 
-            var key = ctx.Current.IsLeaf ? ctx.Sibling.FirstKey : ctx.Current.GetNodeEntry(ctx.Current.FixedHeader.Count - 1).Key;
+            var key = ctx.Current.IsLeaf ?
+                ctx.Sibling.FirstKey :
+                ctx.Current.GetNodeEntry(ctx.Current.FixedHeader.Count - 1).Key;
             if (ctx.Parent == null)
             {
                 ctx.Parent = GetPageForUpdate(lltx, key, ctx.Sibling.Depth - 1);

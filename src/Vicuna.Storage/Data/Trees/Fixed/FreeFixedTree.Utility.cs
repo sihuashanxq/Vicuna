@@ -33,13 +33,13 @@ namespace Vicuna.Engine.Data.Trees.Fixed
                         break;
                     }
 
-                    var fixedPage = tx.GetPage(buffer).AsFixed();
-                    if (fixedPage.Depth == level)
+                    var page = tx.GetPage(buffer).AsFixed();
+                    if (page.Depth == level)
                     {
                         break;
                     }
 
-                    buffer = tx.Buffers.GetEntry(fixedPage.FindPage(key));
+                    buffer = tx.Buffers.GetEntry(page.FindPage(key));
                 }
             }
 

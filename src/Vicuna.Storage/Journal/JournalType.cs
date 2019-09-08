@@ -14,6 +14,8 @@
 
         SetByte16 = 6,
 
-        CreatePage = 7,
+        INSERT,
+
+        REORGANIZE, 
     }
 }

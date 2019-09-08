@@ -18,14 +18,14 @@ namespace Vicuna.Engine.Data.Trees.Fixed
 
         protected void AddEntry(LowLevelTransaction lltx, FreeFixedTreePage page, long key, Span<byte> value)
         {
-            if (page.SearchForAdd(key) == 0)
+            if (!page.AllocForKey(key, out var matchFlags, out _, out var entry))
             {
+                SplitLeaf(lltx, page, key, page.FixedHeader.Count / 2);
                 return;
             }
 
-            if (!page.Alloc(page.LastMatchIndex, out var entry))
+            if (matchFlags == 0)
             {
-                SplitLeaf(lltx, page, key, page.FixedHeader.Count / 2);
                 return;
             }
 
@@ -61,10 +61,7 @@ namespace Vicuna.Engine.Data.Trees.Fixed
                 return;
             }
 
-            var flag = page.SearchForAdd(key);
-            var index = page.LastMatchIndex;
-
-            if (page.Alloc(index, out var entry))
+            if (page.AllocForKey(key, out _, out var index, out var entry))
             {
                 if (index == fixedHeader.Count - 1)
                 {
