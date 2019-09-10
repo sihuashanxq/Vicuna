@@ -7,9 +7,11 @@ using Vicuna.Engine.Storages;
 
 namespace Vicuna.Engine.Transactions
 {
-    public class LowLevelTransaction : IDisposable
+    public partial class LowLevelTransaction : IDisposable
     {
         internal long Id { get; }
+
+        internal List<byte> Logger { get; }
 
         internal BufferPool Buffers { get; }
 
