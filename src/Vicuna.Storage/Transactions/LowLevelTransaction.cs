@@ -1,9 +1,11 @@
 ﻿using System;
 using System.Collections.Generic;
+using System.IO;
 using Vicuna.Engine.Buffers;
 using Vicuna.Engine.Locking;
 using Vicuna.Engine.Paging;
 using Vicuna.Engine.Storages;
+using Vicuna.Storage.Collections;
 
 namespace Vicuna.Engine.Transactions
 {
@@ -11,27 +13,27 @@ namespace Vicuna.Engine.Transactions
     {
         internal long Id { get; }
 
-        internal List<byte> Logger { get; }
-
         internal BufferPool Buffers { get; }
+
+        internal FastList<byte> Logger { get; } = new FastList<byte>();
 
         internal PageManager PageManager { get; }
 
         internal Transaction Transaction { get; }
 
-        internal Stack<LatchScope> LatchScopes { get; }
-
-        internal Dictionary<object, LatchScope> LatchScopeMaps { get; }
+        internal Stack<LatchScope> Latches { get; }
 
         internal Dictionary<PagePosition, Page> Modifies { get; }
+
+        internal Dictionary<object, LatchScope> LatchMaps { get; }
 
         public LowLevelTransaction(long id, BufferPool buffers)
         {
             Id = id;
-            LatchScopes = new Stack<LatchScope>();
-            Buffers = buffers ?? throw new ArgumentNullException(nameof(buffers));
+            Buffers = buffers;
             Modifies = new Dictionary<PagePosition, Page>();
-            LatchScopeMaps = new Dictionary<object, LatchScope>();
+            Latches = new Stack<LatchScope>();
+            LatchMaps = new Dictionary<object, LatchScope>();
         }
 
         public Page GetPage(PagePosition pos)
@@ -41,7 +43,7 @@ namespace Vicuna.Engine.Transactions
                 return cache;
             }
 
-            if (LatchScopeMaps.TryGetValue(pos, out var entry))
+            if (LatchMaps.TryGetValue(pos, out var entry))
             {
                 return ((BufferEntry)entry?.Latch?.Target)?.Page;
             }
@@ -62,7 +64,7 @@ namespace Vicuna.Engine.Transactions
                 return cache;
             }
 
-            if (!LatchScopeMaps.ContainsKey(buffer.Page.Position))
+            if (!LatchMaps.ContainsKey(buffer.Page.Position))
             {
                 AddLatchScope(buffer.Latch.EnterReadScope());
             }
@@ -112,11 +114,6 @@ namespace Vicuna.Engine.Transactions
             return entry;
         }
 
-        public void ModifyFile(File file)
-        {
-            AddLatchScope(file.Latch.EnterWriteScope());
-        }
-
         public void FreePage(Page page)
         {
 
@@ -142,7 +139,7 @@ namespace Vicuna.Engine.Transactions
 
         protected void AddLatchScope(LatchScope scope)
         {
-            if (LatchScopeMaps.TryGetValue(scope.Latch.Target, out var old))
+            if (LatchMaps.TryGetValue(scope.Latch.Target, out var old))
             {
                 if (old.Flags != scope.Flags)
                 {
@@ -152,8 +149,8 @@ namespace Vicuna.Engine.Transactions
                 return;
             }
 
-            LatchScopes.Push(scope);
-            LatchScopeMaps.Add(scope.Latch.Target, scope);
+            Latches.Push(scope);
+            LatchMaps.Add(scope.Latch.Target, scope);
         }
 
         public void Commit()
@@ -161,8 +158,8 @@ namespace Vicuna.Engine.Transactions
             ReleaseResources();
 
             Modifies.Clear();
-            LatchScopes.Clear();
-            LatchScopeMaps.Clear();
+            Latches.Clear();
+            LatchMaps.Clear();
         }
 
         public void Dispose()
@@ -174,9 +171,9 @@ namespace Vicuna.Engine.Transactions
         {
             lock (Buffers.SyncRoot)
             {
-                while (LatchScopes.Count != 0)
+                while (Latches.Count != 0)
                 {
-                    var latch = LatchScopes.Pop();
+                    var latch = Latches.Pop();
                     if (latch.Latch.Target is BufferEntry entry)
                     {
                         entry.Count--;

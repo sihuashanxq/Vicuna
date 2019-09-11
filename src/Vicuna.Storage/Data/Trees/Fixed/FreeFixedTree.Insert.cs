@@ -5,22 +5,29 @@ namespace Vicuna.Engine.Data.Trees.Fixed
 {
     public partial class FreeFixedTree
     {
+        protected System.Threading.ReaderWriterLockSlim _read = new System.Threading.ReaderWriterLockSlim();
+
         public void AddEntry(LowLevelTransaction lltx, long key, Span<byte> value)
         {
-            var page = GetPageForUpdate(lltx, key, Constants.PageDepth);
-            if (page == null)
+            lock (this)
             {
-                throw new InvalidOperationException($"can't find a page for add key:{key}");
-            }
+                var page = GetPageForUpdate(lltx, key, Constants.PageDepth);
+                if (page == null)
+                {
+                    throw new InvalidOperationException($"can't find a page for add key:{key}");
+                }
 
-            AddEntry(lltx, page, key, value);
+                AddEntry(lltx, page, key, value);
+            }
         }
 
         protected void AddEntry(LowLevelTransaction lltx, FreeFixedTreePage page, long key, Span<byte> value)
         {
             if (!page.AllocForKey(key, out var matchFlags, out _, out var entry))
             {
+                lltx.WriteMultiLogBegin();
                 SplitLeaf(lltx, page, key, page.FixedHeader.Count / 2);
+                lltx.WriteMultiLogEnd();
                 return;
             }
 
@@ -38,6 +45,8 @@ namespace Vicuna.Engine.Data.Trees.Fixed
 
             entry.Key = key;
             value.CopyTo(entry.Value);
+
+            lltx.WriteFixedBTreeLeafPageInsertEntry(page.Position, key, value);
         }
 
         protected void AddBranchEntry(LowLevelTransaction lltx, FreeFixedTreePage page, FreeFixedTreePage leaf, long lPageNumber, long rPageNumber, long key)
@@ -58,6 +67,8 @@ namespace Vicuna.Engine.Data.Trees.Fixed
 
                 entry2.Key = 0;
                 entry2.PageNumber = rPageNumber;
+
+                lltx.WriteFixedBTreeBranchPageInsertEntry(page.Position, key, lPageNumber, rPageNumber);
                 return;
             }
 
@@ -78,6 +89,8 @@ namespace Vicuna.Engine.Data.Trees.Fixed
                     entry.PageNumber = lPageNumber;
                     nextEntry.PageNumber = rPageNumber;
                 }
+
+                lltx.WriteFixedBTreeBranchPageInsertEntry(page.Position, key, lPageNumber, rPageNumber);
             }
             else
             {

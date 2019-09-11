@@ -29,15 +29,44 @@ namespace Vicuna.Engine.Data.Trees.Fixed
         public ushort Count;
 
         [FieldOffset(39)]
-        public int Depth;
+        public byte Depth;
 
-        [FieldOffset(43)]
+        [FieldOffset(40)]
         public byte DataElementSize;
 
-        [FieldOffset(44)]
+        [FieldOffset(41)]
         public TreeNodeFlags NodeFlags;
 
-        [FieldOffset(45)]
-        public fixed byte Reserved[SizeOf - 45];
+        [FieldOffset(42)]
+        public fixed byte Reserved[SizeOf - 42];
+
+        public static short Offset(string name)
+        {
+            switch (name)
+            {
+                case nameof(Flags):
+                    return 0;
+                case nameof(FileId):
+                    return 1;
+                case nameof(PageNumber):
+                    return 5;
+                case nameof(LSN):
+                    return 13;
+                case nameof(PrevPageNumber):
+                    return 21;
+                case nameof(NextPageNumber):
+                    return 29;
+                case nameof(Count):
+                    return 37;
+                case nameof(Depth):
+                    return 39;
+                case nameof(DataElementSize):
+                    return 40;
+                case nameof(NodeFlags):
+                    return 41;
+                default:
+                    return -1;
+            }
+        }
     }
 }

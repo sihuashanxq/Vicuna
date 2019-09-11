@@ -16,7 +16,7 @@ namespace Vicuna.Engine.Data.Trees.Fixed
             LastMatchIndex = -1;
         }
 
-        public int Depth
+        public byte Depth
         {
             get => FixedHeader.Depth;
         }

@@ -1,5 +1,6 @@
 ﻿using System;
 using System.Runtime.CompilerServices;
+using Vicuna.Engine.Paging;
 using Vicuna.Engine.Transactions;
 
 namespace Vicuna.Engine.Data.Trees.Fixed
@@ -14,6 +15,7 @@ namespace Vicuna.Engine.Data.Trees.Fixed
             }
 
             ref var header = ref current.FixedHeader;
+            var isRoot = current.IsRoot;
             var ctx = new SplitContext()
             {
                 Index = index,
@@ -23,7 +25,7 @@ namespace Vicuna.Engine.Data.Trees.Fixed
                 OldSibling = ModifyPage(lltx, header.FileId, header.NextPageNumber)
             };
 
-            if (ctx.Current.IsRoot)
+            if (isRoot)
             {
                 SplitRoot(lltx, ref ctx);
             }
@@ -44,6 +46,7 @@ namespace Vicuna.Engine.Data.Trees.Fixed
 
             ref var header = ref current.FixedHeader;
             var entry = leaf.Remove(leaf.FixedHeader.Count - 1);
+            var isRoot = current.IsRoot;
             var ctx = new SplitContext()
             {
                 Index = index,
@@ -53,7 +56,7 @@ namespace Vicuna.Engine.Data.Trees.Fixed
                 OldSibling = ModifyPage(lltx, header.FileId, header.NextPageNumber)
             };
 
-            if (current.IsRoot)
+            if (isRoot)
             {
                 SplitRoot(lltx, ref ctx);
             }
@@ -85,6 +88,10 @@ namespace Vicuna.Engine.Data.Trees.Fixed
             root.FixedHeader.Depth--;
             root.FixedHeader.DataElementSize = sizeof(long);
 
+            lltx.WriteFixedBTreeLeafPageDeleteEntry(ctx.Leaf.Position, ctx.Leaf.FixedHeader.Count);
+            lltx.WriteFixedBTreeCopyEntries(root.Position, ctx.Current.Position, 0);
+            lltx.WriteFixedBTreeRootSplitted(root.Position);
+
             SplitPage(lltx, ref ctx);
         }
 
@@ -94,6 +101,10 @@ namespace Vicuna.Engine.Data.Trees.Fixed
             ctx.Current.FixedHeader.NextPageNumber = ctx.Sibling.FixedHeader.PageNumber;
             ctx.Current.CopyEntriesTo(ctx.Sibling, ctx.Index);
 
+            lltx.WriteByte8(ctx.Sibling.Position, FreeFixedTreePageHeader.Offset("PrevPageNumber"), ctx.Current.FixedHeader.PageNumber);
+            lltx.WriteByte8(ctx.Current.Position, FreeFixedTreePageHeader.Offset("NextPageNumber"), ctx.Sibling.FixedHeader.PageNumber);
+            lltx.WriteFixedBTreeCopyEntries(ctx.Current.Position, ctx.Sibling.Position, ctx.Index);
+
             if (ctx.OldSibling != null)
             {
                 ctx.OldSibling.FixedHeader.PrevPageNumber = ctx.Sibling.FixedHeader.PageNumber;
@@ -102,6 +113,7 @@ namespace Vicuna.Engine.Data.Trees.Fixed
             var key = ctx.Current.IsLeaf ?
                 ctx.Sibling.FirstKey :
                 ctx.Current.GetNodeEntry(ctx.Current.FixedHeader.Count - 1).Key;
+
             if (ctx.Parent == null)
             {
                 ctx.Parent = GetPageForUpdate(lltx, key, ctx.Sibling.Depth - 1);
@@ -120,7 +132,7 @@ namespace Vicuna.Engine.Data.Trees.Fixed
             return lltx.ModifyPage(fileId, pageNumber).AsFixed();
         }
 
-        private FreeFixedTreePage CreatePage(LowLevelTransaction lltx, int depth, int fileId, long pageNumber, TreeNodeFlags flags, byte dataSize)
+        private FreeFixedTreePage CreatePage(LowLevelTransaction lltx, byte depth, int fileId, long pageNumber, TreeNodeFlags flags, byte dataSize)
         {
             var fixedPage = ModifyPage(lltx, fileId, pageNumber);
             if (fixedPage == null)
@@ -143,6 +155,8 @@ namespace Vicuna.Engine.Data.Trees.Fixed
             fixedHeader.Flags = PageHeaderFlags.BTree;
             fixedHeader.LSN = lsn;
             fixedHeader.Depth = depth;
+
+            lltx.WriteFixedBTreePageCreated(new PagePosition(fileId, pageNumber), flags, depth, dataSize);
 
             return fixedPage;
         }

@@ -7,9 +7,9 @@ namespace Vicuna.Engine.Transactions
 {
     public partial class LowLevelTransaction
     {
-        public void WriteLogBegin()
+        public void WriteMultiLogBegin()
         {
-            Logger.Add((byte)LogFlags.LOG_BEGIN);
+            Logger.Add((byte)LogFlags.MLOG_BEGIN);
         }
 
         public void WriteFileRaise(int fileId, long length)
@@ -62,10 +62,35 @@ namespace Vicuna.Engine.Transactions
             Logger.AddRange(BitConverter.GetBytes(pos.PageNumber));
             Logger.AddRange(BitConverter.GetBytes(offset));
             Logger.AddRange(BitConverter.GetBytes((short)values.Length));
-            //AddRange(values);
+            Logger.AddRange(values);
         }
 
-        public void WriteBTreeLeafPageFree(PagePosition pos)
+        public void WriteBTreeLeafPageInsertEntry()
+        {
+
+        }
+
+        public void WriteBTreeLeafPageDeleteEntry()
+        {
+
+        }
+
+        public void WriteBTreeBranchPageInsertEntry()
+        {
+
+        }
+
+        public void WriteBTreeBranchPageDeleteEntry()
+        {
+
+        }
+
+        public void WriteBTreeBranchPageFreed()
+        {
+
+        }
+
+        public void WriteBTreeLeafPageFreed(PagePosition pos)
         {
 
         }
@@ -75,32 +100,7 @@ namespace Vicuna.Engine.Transactions
 
         }
 
-        public void WriteBTreeLeafPageInsert()
-        {
-
-        }
-
-        public void WriteBTreeLeafPageDelete()
-        {
-
-        }
-
-        public void WriteBTreeBranchPageFree()
-        {
-
-        }
-
-        public void WriteBTreeBranchPageCreate()
-        {
-
-        }
-
-        public void WriteBTreeBranchPageInsert()
-        {
-
-        }
-
-        public void WriteBTreeBranchPageDelete()
+        public void WriteBTreeBranchPageCreated()
         {
 
         }
@@ -112,54 +112,27 @@ namespace Vicuna.Engine.Transactions
             Logger.AddRange(BitConverter.GetBytes(pos.PageNumber));
         }
 
-        public void WriteFixedTreeLeafPageFree(PagePosition pos)
+        public void WriteFixedBTreeLeafPageInsertEntry(PagePosition pos, long key, Span<byte> values)
         {
-            Logger.Add((byte)LogFlags.FPAGE_LEAF_FREE);
-            Logger.AddRange(BitConverter.GetBytes(pos.FileId));
-            Logger.AddRange(BitConverter.GetBytes(pos.PageNumber));
-        }
-
-        public void WriteFixedTreeLeafPageCreate(PagePosition pos, TreeNodeFlags flags, byte depth, byte dataSize)
-        {
-            Logger.Add((byte)LogFlags.FPAGE_LEAF_CREATE);
-            Logger.AddRange(BitConverter.GetBytes(pos.FileId));
-            Logger.AddRange(BitConverter.GetBytes(pos.PageNumber));
-            Logger.Add((byte)flags);
-            Logger.Add(depth);
-            Logger.Add(dataSize);
-        }
-
-        public void WriteFixedTreeLeafPageInsert(PagePosition pos, long key, Span<byte> values)
-        {
-            Logger.Add((byte)LogFlags.FPAGE_LEAF_INSERT);
+            Logger.Add((byte)LogFlags.FPAGE_LEAF_INSERT_ENTRY);
             Logger.AddRange(BitConverter.GetBytes(pos.FileId));
             Logger.AddRange(BitConverter.GetBytes(pos.PageNumber));
             Logger.AddRange(BitConverter.GetBytes(key));
             Logger.Add((byte)values.Length);
-            //AddRange(values);
+            Logger.AddRange(values);
         }
 
-        public void WriteFixedTreeLeafPageDelete(PagePosition pos, short index)
+        public void WriteFixedBTreeLeafPageDeleteEntry(PagePosition pos, ushort index)
         {
-            Logger.Add((byte)LogFlags.FPAGE_LEAF_DELETE);
+            Logger.Add((byte)LogFlags.FPAGE_LEAF_DELETE_ENTRY);
             Logger.AddRange(BitConverter.GetBytes(pos.FileId));
             Logger.AddRange(BitConverter.GetBytes(pos.PageNumber));
             Logger.AddRange(BitConverter.GetBytes(index));
         }
 
-        public void WriteFixedTreeBranchPageFree()
+        public void WriteFixedBTreeBranchPageInsertEntry(PagePosition pos, long key, long lPageNumber, long rPageNumber)
         {
-
-        }
-
-        public void WriteFixedTreeBranchPageCreate()
-        {
-
-        }
-
-        public void WriteFixedTreeBranchPageInsert(PagePosition pos, long key, long lPageNumber, long rPageNumber)
-        {
-            Logger.Add((byte)LogFlags.FPAGE_BRANCH_INSERT);
+            Logger.Add((byte)LogFlags.FPAGE_BRANCH_INSERT_ENTRY);
             Logger.AddRange(BitConverter.GetBytes(pos.FileId));
             Logger.AddRange(BitConverter.GetBytes(pos.PageNumber));
             Logger.AddRange(BitConverter.GetBytes(key));
@@ -167,17 +140,51 @@ namespace Vicuna.Engine.Transactions
             Logger.AddRange(BitConverter.GetBytes(rPageNumber));
         }
 
-        public void WriteFixedTreeBranchPageDelete(PagePosition pos, short index)
+        public void WriteFixedBTreeBranchPageDeleteEntry(PagePosition pos, short index)
         {
-            Logger.Add((byte)LogFlags.FPAGE_BRANCH_DELETE);
+            Logger.Add((byte)LogFlags.FPAGE_BRANCH_DELETE_ENTRY);
             Logger.AddRange(BitConverter.GetBytes(pos.FileId));
             Logger.AddRange(BitConverter.GetBytes(pos.PageNumber));
             Logger.AddRange(BitConverter.GetBytes(index));
         }
 
-        public void WriteLogEnd()
+        public void WriteFixedBTreePageFreed(PagePosition pos)
         {
-            Logger.Add((byte)LogFlags.LOG_END);
+            Logger.Add((byte)LogFlags.FPAGE_FREED);
+            Logger.AddRange(BitConverter.GetBytes(pos.FileId));
+            Logger.AddRange(BitConverter.GetBytes(pos.PageNumber));
+        }
+
+        public void WriteFixedBTreePageCreated(PagePosition pos, TreeNodeFlags flags, byte depth, byte dataSize)
+        {
+            Logger.Add((byte)LogFlags.FPAGE_CREATED);
+            Logger.AddRange(BitConverter.GetBytes(pos.FileId));
+            Logger.AddRange(BitConverter.GetBytes(pos.PageNumber));
+            Logger.Add((byte)flags);
+            Logger.Add(depth);
+            Logger.Add(dataSize);
+        }
+
+        public void WriteFixedBTreeCopyEntries(PagePosition from, PagePosition to, int index)
+        {
+            Logger.Add((byte)LogFlags.FPAGE_COPY_ENTRIES);
+            Logger.AddRange(BitConverter.GetBytes(from.FileId));
+            Logger.AddRange(BitConverter.GetBytes(from.PageNumber));
+            Logger.AddRange(BitConverter.GetBytes(to.FileId));
+            Logger.AddRange(BitConverter.GetBytes(to.PageNumber));
+            Logger.AddRange(BitConverter.GetBytes((short)index));
+        }
+
+        public void WriteFixedBTreeRootSplitted(PagePosition pos)
+        {
+            Logger.Add((byte)LogFlags.FPAGE_ROOT_SPLITTED);
+            Logger.AddRange(BitConverter.GetBytes(pos.FileId));
+            Logger.AddRange(BitConverter.GetBytes(pos.PageNumber));
+        }
+
+        public void WriteMultiLogEnd()
+        {
+            Logger.Add((byte)LogFlags.MLOG_END);
         }
     }
 }
