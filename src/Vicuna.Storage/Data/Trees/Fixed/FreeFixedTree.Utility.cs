@@ -20,7 +20,7 @@ namespace Vicuna.Engine.Data.Trees.Fixed
             return buffer.Page.Header.Cast<FreeFixedTreePageHeader>().NodeFlags.HasFlag(TreeNodeFlags.Branch);
         }
 
-        private BufferEntry GetBufferForKey(LowLevelTransaction lltx, long key, int level)
+        private BufferEntry GetBufferForKey(LowLevelTransaction lltx, long key, byte depth)
         {
             var buffer = lltx.Buffers.GetEntry(Root.FileId, Root.PageNumber);
 
@@ -34,7 +34,7 @@ namespace Vicuna.Engine.Data.Trees.Fixed
                     }
 
                     var page = tx.GetPage(buffer).AsFixed();
-                    if (page.Depth == level)
+                    if (page.Depth == depth)
                     {
                         break;
                     }
@@ -46,9 +46,9 @@ namespace Vicuna.Engine.Data.Trees.Fixed
             return buffer;
         }
 
-        private FreeFixedTreePage GetPageForUpdate(LowLevelTransaction lltx, long key, int level)
+        private FreeFixedTreePage GetPageForUpdate(LowLevelTransaction lltx, long key, byte depth)
         {
-            var buffer = GetBufferForKey(lltx, key, level);
+            var buffer = GetBufferForKey(lltx, key, depth);
             if (buffer == null)
             {
                 throw new NullReferenceException($"can't find a page for the key:{key.ToString()}");
@@ -63,9 +63,9 @@ namespace Vicuna.Engine.Data.Trees.Fixed
             return fixedPage;
         }
 
-        private FreeFixedTreePage GetPageForQuery(LowLevelTransaction lltx, long key, int level, TreeNodeFetchMode mode = TreeNodeFetchMode.Lte)
+        private FreeFixedTreePage GetPageForQuery(LowLevelTransaction lltx, long key, byte depth)
         {
-            var buffer = GetBufferForKey(lltx, key, level);
+            var buffer = GetBufferForKey(lltx, key, depth);
             if (buffer == null)
             {
                 throw new NullReferenceException($"can't find a page for the key:{key.ToString()}");

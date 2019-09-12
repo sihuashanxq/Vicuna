@@ -36,6 +36,11 @@ namespace Vicuna.Engine.Transactions
             LatchMaps = new Dictionary<object, LatchScope>();
         }
 
+        public Page GetPage(int fileId, long pageNumber)
+        {
+            return GetPage(new PagePosition(fileId, pageNumber));
+        }
+
         public Page GetPage(PagePosition pos)
         {
             if (Modifies.TryGetValue(pos, out var cache))

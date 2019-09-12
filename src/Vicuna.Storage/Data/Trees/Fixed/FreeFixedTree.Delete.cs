@@ -2,6 +2,9 @@
 {
     public partial class FreeFixedTree
     {
-       
+        public void Remove(long key)
+        {
+
+        }
     }
 }

@@ -5,8 +5,6 @@ namespace Vicuna.Engine.Data.Trees.Fixed
 {
     public partial class FreeFixedTree
     {
-        protected System.Threading.ReaderWriterLockSlim _read = new System.Threading.ReaderWriterLockSlim();
-
         public void AddEntry(LowLevelTransaction lltx, long key, Span<byte> value)
         {
             lock (this)
