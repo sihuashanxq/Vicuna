@@ -122,9 +122,9 @@ namespace Vicuna.Engine.Transactions
             Logger.AddRange(values);
         }
 
-        public void WriteFixedBTreeLeafPageDeleteEntry(PagePosition pos, ushort index)
+        public void WriteFixedBTreePageDeleteEntry(PagePosition pos, ushort index)
         {
-            Logger.Add((byte)LogFlags.FBPAGE_LEAF_DELETE_ENTRY);
+            Logger.Add((byte)LogFlags.FBPAGE_DELETE_ENTRY);
             Logger.AddRange(BitConverter.GetBytes(pos.FileId));
             Logger.AddRange(BitConverter.GetBytes(pos.PageNumber));
             Logger.AddRange(BitConverter.GetBytes(index));
@@ -138,14 +138,6 @@ namespace Vicuna.Engine.Transactions
             Logger.AddRange(BitConverter.GetBytes(key));
             Logger.AddRange(BitConverter.GetBytes(lPageNumber));
             Logger.AddRange(BitConverter.GetBytes(rPageNumber));
-        }
-
-        public void WriteFixedBTreeBranchPageDeleteEntry(PagePosition pos, short index)
-        {
-            Logger.Add((byte)LogFlags.FBPAGE_BRANCH_DELETE_ENTRY);
-            Logger.AddRange(BitConverter.GetBytes(pos.FileId));
-            Logger.AddRange(BitConverter.GetBytes(pos.PageNumber));
-            Logger.AddRange(BitConverter.GetBytes(index));
         }
 
         public void WriteFixedBTreePageFreed(PagePosition pos)
@@ -178,6 +170,13 @@ namespace Vicuna.Engine.Transactions
         public void WriteFixedBTreeRootSplitted(PagePosition pos)
         {
             Logger.Add((byte)LogFlags.FBPAGE_ROOT_SPLITTED);
+            Logger.AddRange(BitConverter.GetBytes(pos.FileId));
+            Logger.AddRange(BitConverter.GetBytes(pos.PageNumber));
+        }
+
+        public void WriteFixedBTreeRootInitialized(PagePosition pos)
+        {
+            Logger.Add((byte)LogFlags.FBPAGE_ROOT_INITED);
             Logger.AddRange(BitConverter.GetBytes(pos.FileId));
             Logger.AddRange(BitConverter.GetBytes(pos.PageNumber));
         }

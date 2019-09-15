@@ -90,7 +90,7 @@ namespace Vicuna.Engine.Data.Trees.Fixed
             rootHeader.NodeFlags = TreeNodeFlags.Branch | TreeNodeFlags.Root;
             rootHeader.DataElementSize = sizeof(long);
 
-            lltx.WriteFixedBTreeLeafPageDeleteEntry(ctx.Leaf.Position, ctx.Leaf.FixedHeader.Count);
+            lltx.WriteFixedBTreePageDeleteEntry(ctx.Leaf.Position, ctx.Leaf.FixedHeader.Count);
             lltx.WriteFixedBTreeCopyEntries(root.Position, ctx.Current.Position, 0);
             lltx.WriteFixedBTreeRootSplitted(root.Position);
 

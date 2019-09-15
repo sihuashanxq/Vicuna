@@ -14,12 +14,12 @@ namespace Vicuna.Engine.Data.Trees.Fixed
             };
         }
 
-        public bool TryGetEntry(LowLevelTransaction lltx, long key, out FreeFixedTreeNodeEntry entry)
+        public bool TryGetEntry(LowLevelTransaction lltx, long key, out FreeFixedTreeNodeEntry nodeEntry)
         {
             var page = GetPageForQuery(lltx, key, Constants.PageDepth);
             if (page == null)
             {
-                entry = FreeFixedTreeNodeEntry.Empty;
+                nodeEntry = FreeFixedTreeNodeEntry.Empty;
                 return false;
             }
 
@@ -30,11 +30,11 @@ namespace Vicuna.Engine.Data.Trees.Fixed
 
             if (page.LastMatch != 0 || page.LastMatchIndex < 0)
             {
-                entry = FreeFixedTreeNodeEntry.Empty;
+                nodeEntry = FreeFixedTreeNodeEntry.Empty;
                 return false;
             }
 
-            entry = page.GetNodeEntry(page.LastMatchIndex);
+            nodeEntry = page.GetNodeEntry(page.LastMatchIndex);
             return true;
         }
     }
