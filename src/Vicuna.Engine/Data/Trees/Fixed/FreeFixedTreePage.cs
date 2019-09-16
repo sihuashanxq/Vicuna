@@ -235,7 +235,7 @@ namespace Vicuna.Engine.Data.Trees.Fixed
             var ptr = GetNodePtr(index);
             if (ptr + FreeFixedTreeNodeHeader.SizeOf > Constants.PageSize - Constants.PageFooterSize)
             {
-                throw new PageCorruptedException(this);
+                throw new PageDamageException(this);
             }
 
             return ReadAt<FreeFixedTreeNodeHeader>(ptr, FreeFixedTreeNodeHeader.SizeOf).PageNumber;
@@ -264,7 +264,7 @@ namespace Vicuna.Engine.Data.Trees.Fixed
             var ptr = GetNodePtr(index) + FreeFixedTreeNodeHeader.SizeOf;
             if (ptr + fixedHeader.DataElementSize > Constants.PageSize - Constants.PageFooterSize)
             {
-                throw new PageCorruptedException(this);
+                throw new PageDamageException(this);
             }
 
             return ReadAt(ptr, fixedHeader.DataElementSize);
@@ -283,7 +283,7 @@ namespace Vicuna.Engine.Data.Trees.Fixed
             if (ptr > Constants.PageSize - Constants.PageFooterSize ||
                 ptr < Constants.PageHeaderSize)
             {
-                throw new PageCorruptedException(this);
+                throw new PageDamageException(this);
             }
 
             return ref GetNodeHeader(ptr);
@@ -296,7 +296,7 @@ namespace Vicuna.Engine.Data.Trees.Fixed
             if (ptr > Constants.PageSize - Constants.PageFooterSize ||
                 ptr < Constants.PageHeaderSize)
             {
-                throw new PageCorruptedException(this);
+                throw new PageDamageException(this);
             }
 
             return new FreeFixedTreeNodeEntry()

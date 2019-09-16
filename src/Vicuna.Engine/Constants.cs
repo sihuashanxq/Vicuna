@@ -15,5 +15,9 @@
         public const int PageBodySize = PageSize - PageHeaderSize - PageFooterSize;
 
         public const int BTreeLeafPageDepth = byte.MaxValue;
+
+        public const long TreeRootPageNumber = 0;
+
+        public const long FixedTreeRootPageNumber = 0;
     }
 }

@@ -21,7 +21,7 @@
   </ItemGroup>
 
   <ItemGroup>
-    <ProjectReference Include="..\..\src\Vicuna.Storage\Vicuna.Engine.csproj" />
+    <ProjectReference Include="..\..\src\Vicuna.Engine\Vicuna.Engine.csproj" />
   </ItemGroup>
 
 </Project>

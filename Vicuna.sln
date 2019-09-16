@@ -5,11 +5,11 @@ VisualStudioVersion = 15.0.28307.572
 MinimumVisualStudioVersion = 10.0.40219.1
 Project("{2150E333-8FDC-42A3-9474-1A3956D46DE8}") = "src", "src", "{C8F474B7-DD9A-451B-910B-B217E27C6596}"
 EndProject
-Project("{9A19103F-16F7-4668-BE54-9A1E7A4F7556}") = "Vicuna.Engine", "src\Vicuna.Storage\Vicuna.Engine.csproj", "{7B279227-626F-472A-A57E-FC472001418C}"
+Project("{9A19103F-16F7-4668-BE54-9A1E7A4F7556}") = "Vicuna.Engine", "src\Vicuna.Engine\Vicuna.Engine.csproj", "{7B279227-626F-472A-A57E-FC472001418C}"
 EndProject
 Project("{2150E333-8FDC-42A3-9474-1A3956D46DE8}") = "test", "test", "{03C57857-C82E-477E-9341-8220F1769F4B}"
 EndProject
-Project("{9A19103F-16F7-4668-BE54-9A1E7A4F7556}") = "Vicuna.Storage.Test", "test\Vicuna.Storage.Test\Vicuna.Storage.Test.csproj", "{A243F62A-CAAF-449E-8A48-B9A14BEF2FF3}"
+Project("{9A19103F-16F7-4668-BE54-9A1E7A4F7556}") = "Vicuna.Engine.Test", "test\Vicuna.Engine.Test\Vicuna.Engine.Test.csproj", "{A243F62A-CAAF-449E-8A48-B9A14BEF2FF3}"
 EndProject
 Global
 	GlobalSection(SolutionConfigurationPlatforms) = preSolution

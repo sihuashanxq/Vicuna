@@ -26,14 +26,13 @@ namespace Vicuna.Engine.Paging
                 throw new ArgumentNullException(nameof(page));
             }
 
-            var pos = page.Position;
-            var file = GetFile(pos.FileId);
+            var file = GetFile(page.Position.FileId);
             if (file == null)
             {
-                throw new KeyNotFoundException($" the file can not be found,id:{pos.FileId}!");
+                throw new KeyNotFoundException($" the file can not be found,id:{page.Position.FileId}!");
             }
 
-            file.Write(pos.PageNumber, page.Data);
+            file.Write(page.Position.PageNumber, page.Data);
         }
 
         public virtual Page ReadPage(PagePosition pos)

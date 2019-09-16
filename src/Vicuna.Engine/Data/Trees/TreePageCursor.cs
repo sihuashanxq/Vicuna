@@ -227,7 +227,7 @@ namespace Vicuna.Engine.Data.Trees
             var ptr = GetNodePointer(LastMatchIndex);
             if (ptr > Constants.PageSize - Constants.PageFooterSize || ptr < Constants.PageHeaderSize)
             {
-                throw new PageCorruptedException(Current);
+                throw new PageDamageException(Current);
             }
 
             return ref GetNodeHeader(ptr);
@@ -273,7 +273,7 @@ namespace Vicuna.Engine.Data.Trees
 
             if (ptr + size > Constants.PageSize - Constants.PageFooterSize)
             {
-                throw new PageCorruptedException(Current);
+                throw new PageDamageException(Current);
             }
 
             entry = new TreeNodeEntry()
@@ -306,7 +306,7 @@ namespace Vicuna.Engine.Data.Trees
             ref var node = ref GetNodeHeader(ptr);
             if (pos + node.KeySize > Constants.PageSize - Constants.PageFooterSize)
             {
-                throw new PageCorruptedException(Current);
+                throw new PageDamageException(Current);
             }
 
             return Current.ReadAt(pos, node.KeySize);
@@ -343,7 +343,7 @@ namespace Vicuna.Engine.Data.Trees
 
             if (pos + node.DataSize > Constants.PageSize - Constants.PageFooterSize)
             {
-                throw new PageCorruptedException(Current);
+                throw new PageDamageException(Current);
             }
 
             return Current.ReadAt(pos, node.DataSize);
@@ -367,7 +367,7 @@ namespace Vicuna.Engine.Data.Trees
             var ptr = Current.ReadAt<ushort>(slot);
             if (ptr < 0 || ptr > Constants.PageSize - Constants.PageFooterSize)
             {
-                throw new PageCorruptedException(Current);
+                throw new PageDamageException(Current);
             }
 
             return ptr;
