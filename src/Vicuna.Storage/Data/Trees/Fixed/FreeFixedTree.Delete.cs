@@ -5,9 +5,9 @@ namespace Vicuna.Engine.Data.Trees.Fixed
 {
     public partial class FreeFixedTree
     {
-        public bool Remove(LowLevelTransaction lltx, long key, out FreeFixedTreeNodeEntry entry)
+        public bool RemoveEntry(LowLevelTransaction lltx, long key, out FreeFixedTreeNodeEntry entry)
         {
-            var page = GetPageForQuery(lltx, key, Constants.PageDepth);
+            var page = GetPageForUpdate(lltx, key, Constants.BTreeLeafPageDepth);
             if (page == null)
             {
                 entry = FreeFixedTreeNodeEntry.Empty;
@@ -25,82 +25,88 @@ namespace Vicuna.Engine.Data.Trees.Fixed
                 return false;
             }
 
+            if (page.FixedHeader.Count == 1)
+            {
+                lltx.WriteMultiLogBegin();
+            }
+
             if (true)
             {
-                entry = page.Remove(page.LastMatchIndex);
+                entry = page.RemoveEntry(lltx, page.LastMatchIndex);
             }
 
             if (page.FixedHeader.Count == 0)
             {
                 RemovePageRecursion(lltx, page, entry.Key);
+                lltx.WriteMultiLogEnd();
             }
 
             return true;
         }
 
-        protected void RemovePageRecursion(LowLevelTransaction lltx, FreeFixedTreePage page, long lastKey)
+        protected void RemovePageRecursion(LowLevelTransaction lltx, FreeFixedTreePage page, long removedKey)
         {
-            var parent = GetPageForUpdate(lltx, lastKey, (byte)(page.Depth - 1));
-            if (parent != null && parent.FixedHeader.Count == 2)
+            var branch = GetPageForUpdate(lltx, removedKey, (byte)(page.Depth - 1));
+            if (branch != null && branch.FixedHeader.Count == 2)
             {
-                RemoveParentRecursion(lltx, page, parent);
+                RemoveBranchRecursion(lltx, page, branch);
                 return;
             }
 
-            ref var fixedHeader = ref page.FixedHeader;
-            if (fixedHeader.PrevPageNumber != -1)
+            ref var header = ref page.FixedHeader;
+            if (header.PrevPageNumber != -1)
             {
-                var prev = ModifyPage(lltx, fixedHeader.FileId, fixedHeader.PrevPageNumber);
+                var prev = ModifyPage(lltx, header.FileId, header.PrevPageNumber);
                 ref var prevHeader = ref prev.FixedHeader;
-                prevHeader.NextPageNumber = fixedHeader.NextPageNumber;
+                prevHeader.NextPageNumber = header.NextPageNumber;
 
-                lltx.WriteByte8(prev.Position, FreeFixedTreePageHeader.Offset("NextPageNumber"), fixedHeader.NextPageNumber);
+                lltx.WriteByte8(prev.Position, FreeFixedTreePageHeader.Offset("NextPageNumber"), header.NextPageNumber);
             }
 
-            if (fixedHeader.NextPageNumber != -1)
+            if (header.NextPageNumber != -1)
             {
-                var next = ModifyPage(lltx, fixedHeader.FileId, fixedHeader.NextPageNumber);
+                var next = ModifyPage(lltx, header.FileId, header.NextPageNumber);
                 ref var nextHeader = ref next.FixedHeader;
-                nextHeader.PrevPageNumber = fixedHeader.PrevPageNumber;
+                nextHeader.PrevPageNumber = header.PrevPageNumber;
 
-                lltx.WriteByte8(next.Position, FreeFixedTreePageHeader.Offset("PrevPageNumber"), fixedHeader.PrevPageNumber);
+                lltx.WriteByte8(next.Position, FreeFixedTreePageHeader.Offset("PrevPageNumber"), header.PrevPageNumber);
             }
 
             if (page.IsRoot)
             {
-                fixedHeader.Depth = Constants.PageDepth;
-                fixedHeader.NodeFlags = TreeNodeFlags.Root | TreeNodeFlags.Leaf;
-                fixedHeader.NextPageNumber = -1;
-                fixedHeader.PrevPageNumber = -1;
+                header.Depth = Constants.BTreeLeafPageDepth;
+                header.NodeFlags = TreeNodeFlags.Root | TreeNodeFlags.Leaf;
+                header.NextPageNumber = -1;
+                header.PrevPageNumber = -1;
 
                 lltx.WriteFixedBTreeRootInitialized(page.Position);
                 return;
             }
 
-            if (parent == null)
+            if (branch == null)
             {
                 throw new NullReferenceException($"parent is null for key:{page.LastKey}");
             }
 
             if (true)
             {
-                parent.Search(lastKey);
+                branch.Search(removedKey);
             }
 
-            if (parent.LastMatch != 0 || page.LastMatchIndex < 0)
+            if (branch.LastMatch != 0 || page.LastMatchIndex < 0)
             {
-                throw new IndexOutOfRangeException($"lastmatch={parent.LastMatch},lastmatchindex={parent.LastMatchIndex}");
+                throw new IndexOutOfRangeException($"lastmatch={branch.LastMatch},lastmatchindex={branch.LastMatchIndex}");
             }
 
-            parent.Remove(page.LastMatchIndex);
-            lltx.WriteFixedBTreePageDeleteEntry(parent.Position, (ushort)parent.LastMatchIndex);
-            //AddEntry(lltx, fixedHeader.PageNumber, Span<byte>.Empty);
+            branch.RemoveEntry(lltx, branch.LastMatchIndex);
+            lltx.WriteFixedBTreePageFreed(page.Position);
+            AddEntry(lltx, header.PageNumber, Span<byte>.Empty, false);
         }
 
-        protected void RemoveParentRecursion(LowLevelTransaction lltx, FreeFixedTreePage page, FreeFixedTreePage parent)
+        protected void RemoveBranchRecursion(LowLevelTransaction lltx, FreeFixedTreePage page, FreeFixedTreePage branch)
         {
-            var lastEntry = parent.GetNodeEntry(1);
-            var firstEntry = parent.GetNodeEntry(0);
+            var lastEntry = branch.GetNodeEntry(1);
+            var firstEntry = branch.GetNodeEntry(0);
 
             var last = default(FreeFixedTreePage);
             var first = default(FreeFixedTreePage);
@@ -143,13 +149,16 @@ namespace Vicuna.Engine.Data.Trees.Fixed
                 lltx.WriteByte8(next.Position, FreeFixedTreePageHeader.Offset("PrevPageNumber"), firstHeader.PrevPageNumber);
             }
 
-            parent.Remove(0);
-            parent.Remove(1);
+            branch.RemoveEntry(lltx, 0);
+            branch.RemoveEntry(lltx, 1);
 
-            RemovePageRecursion(lltx, parent, firstEntry.Key);
-            //AddEntry(lltx, fixedHeader.PageNumber, Span<byte>.Empty);
-            //AddEntry(lltx, fixedHeader.PageNumber, Span<byte>.Empty);
+            lltx.WriteFixedBTreePageFreed(last.Position);
+            lltx.WriteFixedBTreePageFreed(first.Position);
+
+            RemovePageRecursion(lltx, branch, firstEntry.Key);
+
+            AddEntry(lltx, lastHeader.PageNumber, Span<byte>.Empty, false);
+            AddEntry(lltx, firstHeader.PageNumber, Span<byte>.Empty, false);
         }
-
     }
 }

@@ -77,6 +77,24 @@ namespace Vicuna.Engine.Transactions
             return buffer.Page;
         }
 
+        public bool HasBufferLatch(BufferEntry buffer, LatchFlags flags)
+        {
+            if (!LatchMaps.TryGetValue(buffer.Page.Position, out var latch))
+            {
+                return false;
+            }
+
+            switch (flags)
+            {
+                case LatchFlags.Read:
+                    return latch.Flags == LatchFlags.Read || latch.Flags == LatchFlags.Write;
+                case LatchFlags.Write:
+                    return latch.Flags == LatchFlags.Write;
+                default:
+                    return true;
+            }
+        }
+
         public Page ModifyPage(int fileId, long pageNumber)
         {
             return ModifyPage(new PagePosition(fileId, pageNumber));

@@ -1,6 +1,7 @@
 ﻿using System;
 using System.Runtime.CompilerServices;
 using Vicuna.Engine.Paging;
+using Vicuna.Engine.Transactions;
 
 namespace Vicuna.Engine.Data.Trees.Fixed
 {
@@ -99,7 +100,7 @@ namespace Vicuna.Engine.Data.Trees.Fixed
             return Alloc(matchIndex, out entry);
         }
 
-        public FreeFixedTreeNodeEntry Remove(int index)
+        public FreeFixedTreeNodeEntry RemoveEntry(LowLevelTransaction lltx, int index)
         {
             ref var fixedHeader = ref FixedHeader;
             if (index < 0 || index > fixedHeader.Count)
@@ -107,21 +108,10 @@ namespace Vicuna.Engine.Data.Trees.Fixed
                 throw new ArgumentOutOfRangeException(nameof(index));
             }
 
+            var ptr = GetNodePtr(index);
             var size = GetNodeSize(ref fixedHeader);
             var last = GetNodePtr(fixedHeader.Count - 1);
-
-            if (index != fixedHeader.Count - 1)
-            {
-                var ptr = GetNodePtr(index);
-                var len = size * (fixedHeader.Count - 1);
-
-                var to = ReadAt(ptr, len);
-                var from = ReadAt(ptr + size, len);
-
-                from.CopyTo(to);
-            }
-
-            var node = ReadAt(last, size);
+            var node = ReadAt(ptr, size);
             var entry = new FreeFixedTreeNodeEntry()
             {
                 Index = (short)index,
@@ -130,9 +120,19 @@ namespace Vicuna.Engine.Data.Trees.Fixed
                 DataSize = fixedHeader.DataElementSize
             };
 
-            node.Clear();
+            if (index != fixedHeader.Count - 1)
+            {
+                var len = size * (fixedHeader.Count - 1);
+                var to = ReadAt(ptr, len);
+                var from = ReadAt(ptr + size, len);
+
+                from.CopyTo(to);
+            }
+
+            ReadAt(last, size).Clear();
             fixedHeader.Count--;
 
+            lltx.WriteFixedBTreePageDeleteEntry(Position, index);
             return entry;
         }
 
@@ -233,7 +233,7 @@ namespace Vicuna.Engine.Data.Trees.Fixed
             }
 
             var ptr = GetNodePtr(index);
-            if (ptr + FreeFixedTreeNodeHeader.SizeOf > Constants.PageSize - Constants.PageTailerSize)
+            if (ptr + FreeFixedTreeNodeHeader.SizeOf > Constants.PageSize - Constants.PageFooterSize)
             {
                 throw new PageCorruptedException(this);
             }
@@ -262,7 +262,7 @@ namespace Vicuna.Engine.Data.Trees.Fixed
             }
 
             var ptr = GetNodePtr(index) + FreeFixedTreeNodeHeader.SizeOf;
-            if (ptr + fixedHeader.DataElementSize > Constants.PageSize - Constants.PageTailerSize)
+            if (ptr + fixedHeader.DataElementSize > Constants.PageSize - Constants.PageFooterSize)
             {
                 throw new PageCorruptedException(this);
             }
@@ -280,7 +280,7 @@ namespace Vicuna.Engine.Data.Trees.Fixed
         public ref FreeFixedTreeNodeHeader GetNodeHeader(int index)
         {
             var ptr = GetNodePtr(index);
-            if (ptr > Constants.PageSize - Constants.PageTailerSize ||
+            if (ptr > Constants.PageSize - Constants.PageFooterSize ||
                 ptr < Constants.PageHeaderSize)
             {
                 throw new PageCorruptedException(this);
@@ -293,7 +293,7 @@ namespace Vicuna.Engine.Data.Trees.Fixed
         {
             ref var fixedHeader = ref FixedHeader;
             var ptr = GetNodePtr(index);
-            if (ptr > Constants.PageSize - Constants.PageTailerSize ||
+            if (ptr > Constants.PageSize - Constants.PageFooterSize ||
                 ptr < Constants.PageHeaderSize)
             {
                 throw new PageCorruptedException(this);
@@ -317,7 +317,7 @@ namespace Vicuna.Engine.Data.Trees.Fixed
         [MethodImpl(MethodImplOptions.AggressiveInlining)]
         public int GetUsedSize(ref FreeFixedTreePageHeader fixedHeader)
         {
-            return fixedHeader.Count * GetNodeSize(ref fixedHeader) + Constants.PageHeaderSize + Constants.PageTailerSize;
+            return fixedHeader.Count * GetNodeSize(ref fixedHeader) + Constants.PageHeaderSize + Constants.PageFooterSize;
         }
 
         public PagePosition GetLastMatchedPage()

@@ -45,7 +45,7 @@ namespace Vicuna.Engine.Data.Trees.Fixed
             }
 
             ref var currentHeader = ref current.FixedHeader;
-            var entry = leaf.Remove(leaf.FixedHeader.Count - 1);
+            var entry = leaf.RemoveEntry(lltx, leaf.FixedHeader.Count - 1);
             var isRoot = current.IsRoot;
             var ctx = new SplitContext()
             {
@@ -72,7 +72,7 @@ namespace Vicuna.Engine.Data.Trees.Fixed
         {
             ref var rootHeader = ref ctx.Current.FixedHeader;
             var root = ctx.Current;
-            var entry = ctx.Leaf.Remove(ctx.Leaf.FixedHeader.Count - 1);
+            var entry = ctx.Leaf.RemoveEntry(lltx, ctx.Leaf.FixedHeader.Count - 1);
 
             ctx.Parent = root;
             ctx.Current = CreatePage(
@@ -90,7 +90,6 @@ namespace Vicuna.Engine.Data.Trees.Fixed
             rootHeader.NodeFlags = TreeNodeFlags.Branch | TreeNodeFlags.Root;
             rootHeader.DataElementSize = sizeof(long);
 
-            lltx.WriteFixedBTreePageDeleteEntry(ctx.Leaf.Position, ctx.Leaf.FixedHeader.Count);
             lltx.WriteFixedBTreeCopyEntries(root.Position, ctx.Current.Position, 0);
             lltx.WriteFixedBTreeRootSplitted(root.Position);
 
@@ -106,34 +105,36 @@ namespace Vicuna.Engine.Data.Trees.Fixed
             ref var siblingHeader = ref sibling.FixedHeader;
             ref var currentHeader = ref current.FixedHeader;
 
-            siblingHeader.PrevPageNumber = currentHeader.PageNumber;
-            currentHeader.NextPageNumber = siblingHeader.PageNumber;
-
             current.CopyEntriesTo(sibling, ctx.Index);
-
             lltx.WriteFixedBTreeCopyEntries(current.Position, sibling.Position, ctx.Index);
-            lltx.WriteByte8(current.Position, FreeFixedTreePageHeader.Offset("NextPageNumber"), siblingHeader.PageNumber);
-            lltx.WriteByte8(sibling.Position, FreeFixedTreePageHeader.Offset("PrevPageNumber"), currentHeader.PageNumber);
 
-            if (oldSibling != null)
+            if (ctx.Current.IsLeaf)
             {
-                ref var oldSiblingHeader = ref ctx.OldSibling.FixedHeader;
+                siblingHeader.PrevPageNumber = currentHeader.PageNumber;
+                currentHeader.NextPageNumber = siblingHeader.PageNumber;
 
-                siblingHeader.NextPageNumber = oldSiblingHeader.PageNumber;
-                oldSiblingHeader.PrevPageNumber = siblingHeader.PageNumber;
+                lltx.WriteByte8(current.Position, FreeFixedTreePageHeader.Offset("NextPageNumber"), siblingHeader.PageNumber);
+                lltx.WriteByte8(sibling.Position, FreeFixedTreePageHeader.Offset("PrevPageNumber"), currentHeader.PageNumber);
 
-                lltx.WriteByte8(sibling.Position, FreeFixedTreePageHeader.Offset("NextPageNumber"), siblingHeader.NextPageNumber);
-                lltx.WriteByte8(oldSibling.Position, FreeFixedTreePageHeader.Offset("PrevPageNumber"), oldSiblingHeader.PrevPageNumber);
+                if (oldSibling != null)
+                {
+                    ref var oldSiblingHeader = ref ctx.OldSibling.FixedHeader;
+
+                    siblingHeader.NextPageNumber = oldSiblingHeader.PageNumber;
+                    oldSiblingHeader.PrevPageNumber = siblingHeader.PageNumber;
+
+                    lltx.WriteByte8(sibling.Position, FreeFixedTreePageHeader.Offset("NextPageNumber"), siblingHeader.NextPageNumber);
+                    lltx.WriteByte8(oldSibling.Position, FreeFixedTreePageHeader.Offset("PrevPageNumber"), oldSiblingHeader.PrevPageNumber);
+                }
             }
 
             var key = current.IsLeaf ? sibling.FirstKey : current.GetNodeEntry(currentHeader.Count - 1).Key;
-            var parent = ctx.Parent;
-            if (parent == null)
+            if (ctx.Parent == null)
             {
-                ctx.Parent = parent = GetPageForUpdate(lltx, key, (byte)(siblingHeader.Depth - 1));
+                ctx.Parent =  GetPageForUpdate(lltx, key, (byte)(siblingHeader.Depth - 1));
             }
 
-            AddBranchEntry(lltx, parent, ctx.Leaf, currentHeader.PageNumber, siblingHeader.PageNumber, key);
+            AddBranchEntry(lltx, ctx.Parent, ctx.Leaf, currentHeader.PageNumber, siblingHeader.PageNumber, key);
         }
 
         private FreeFixedTreePage ModifyPage(LowLevelTransaction lltx, int fileId, long pageNumber)

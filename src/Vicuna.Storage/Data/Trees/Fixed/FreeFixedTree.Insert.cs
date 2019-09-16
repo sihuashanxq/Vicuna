@@ -5,16 +5,22 @@ namespace Vicuna.Engine.Data.Trees.Fixed
 {
     public partial class FreeFixedTree
     {
-        public void AddEntry(LowLevelTransaction lltx, long key, Span<byte> value)
+        public void AddEntry(LowLevelTransaction lltx, long key, Span<byte> value, bool logStart = true)
         {
-            lock (this)
+            var page = GetPageForUpdate(lltx, key, Constants.BTreeLeafPageDepth);
+            if (page == null)
             {
-                var page = GetPageForUpdate(lltx, key, Constants.PageDepth);
-                if (page == null)
-                {
-                    throw new InvalidOperationException($"can't find a page for add key:{key}");
-                }
+                throw new InvalidOperationException($"can't find a page for add key:{key}");
+            }
 
+            if (logStart)
+            {
+                lltx.WriteMultiLogBegin();
+                AddEntry(lltx, page, key, value);
+                lltx.WriteMultiLogEnd();
+            }
+            else
+            {
                 AddEntry(lltx, page, key, value);
             }
         }
@@ -23,9 +29,7 @@ namespace Vicuna.Engine.Data.Trees.Fixed
         {
             if (!page.AllocForKey(key, out var matchFlags, out _, out var entry))
             {
-                lltx.WriteMultiLogBegin();
                 SplitLeaf(lltx, page, key, page.FixedHeader.Count / 2);
-                lltx.WriteMultiLogEnd();
                 return;
             }
 

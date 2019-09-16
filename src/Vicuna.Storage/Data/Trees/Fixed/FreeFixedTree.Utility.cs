@@ -1,6 +1,7 @@
 ﻿using System;
 using System.Runtime.CompilerServices;
 using Vicuna.Engine.Buffers;
+using Vicuna.Engine.Locking;
 using Vicuna.Engine.Paging;
 using Vicuna.Engine.Transactions;
 
@@ -33,7 +34,7 @@ namespace Vicuna.Engine.Data.Trees.Fixed
                         break;
                     }
 
-                    var page = tx.GetPage(buffer).AsFixed();
+                    var page = lltx.HasBufferLatch(buffer, LatchFlags.Read) ? buffer.Page.AsFixed() : tx.GetPage(buffer).AsFixed();
                     if (page.Depth == depth)
                     {
                         break;

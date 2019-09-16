@@ -10,13 +10,13 @@ namespace Vicuna.Engine.Data.Trees.Fixed
             {
                 Tree = this,
                 Index = 0,
-                Current = GetPageForQuery(lltx, long.MinValue, Constants.PageDepth)
+                Current = GetPageForQuery(lltx, long.MinValue, Constants.BTreeLeafPageDepth)
             };
         }
 
         public bool TryGetEntry(LowLevelTransaction lltx, long key, out FreeFixedTreeNodeEntry nodeEntry)
         {
-            var page = GetPageForQuery(lltx, key, Constants.PageDepth);
+            var page = GetPageForQuery(lltx, key, Constants.BTreeLeafPageDepth);
             if (page == null)
             {
                 nodeEntry = FreeFixedTreeNodeEntry.Empty;

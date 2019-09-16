@@ -6,14 +6,14 @@
 
         public const int MB = 1024 * KB;
 
-        public const int PageDepth = byte.MaxValue;
-
         public const int PageSize = 16 * KB;
 
-        public const int PageTailerSize = 8;
+        public const int PageFooterSize = 8;
 
         public const int PageHeaderSize = 96;
 
-        public const int PageBodySize = PageSize - PageHeaderSize - PageTailerSize;
+        public const int PageBodySize = PageSize - PageHeaderSize - PageFooterSize;
+
+        public const int BTreeLeafPageDepth = byte.MaxValue;
     }
 }

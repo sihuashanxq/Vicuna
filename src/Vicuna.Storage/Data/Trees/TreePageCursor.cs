@@ -225,7 +225,7 @@ namespace Vicuna.Engine.Data.Trees
         public ref TreeNodeHeader GetNodeHeader(int index)
         {
             var ptr = GetNodePointer(LastMatchIndex);
-            if (ptr > Constants.PageSize - Constants.PageTailerSize || ptr < Constants.PageHeaderSize)
+            if (ptr > Constants.PageSize - Constants.PageFooterSize || ptr < Constants.PageHeaderSize)
             {
                 throw new PageCorruptedException(Current);
             }
@@ -271,7 +271,7 @@ namespace Vicuna.Engine.Data.Trees
                     break;
             }
 
-            if (ptr + size > Constants.PageSize - Constants.PageTailerSize)
+            if (ptr + size > Constants.PageSize - Constants.PageFooterSize)
             {
                 throw new PageCorruptedException(Current);
             }
@@ -304,7 +304,7 @@ namespace Vicuna.Engine.Data.Trees
             var pos = ptr + TreeNodeHeader.SizeOf;
 
             ref var node = ref GetNodeHeader(ptr);
-            if (pos + node.KeySize > Constants.PageSize - Constants.PageTailerSize)
+            if (pos + node.KeySize > Constants.PageSize - Constants.PageFooterSize)
             {
                 throw new PageCorruptedException(Current);
             }
@@ -341,7 +341,7 @@ namespace Vicuna.Engine.Data.Trees
                     return Span<byte>.Empty;
             }
 
-            if (pos + node.DataSize > Constants.PageSize - Constants.PageTailerSize)
+            if (pos + node.DataSize > Constants.PageSize - Constants.PageFooterSize)
             {
                 throw new PageCorruptedException(Current);
             }
@@ -359,13 +359,13 @@ namespace Vicuna.Engine.Data.Trees
 
             var slot = GetNodeSlot(index);
             if (slot < TreeNodeHeader.SizeOf ||
-                slot > Constants.PageSize - PageTailer.SizeOf)
+                slot > Constants.PageSize - PageFooter.SizeOf)
             {
                 throw new IndexOutOfRangeException($"index:{index},slot:{slot},page:{Current.Position}");
             }
 
             var ptr = Current.ReadAt<ushort>(slot);
-            if (ptr < 0 || ptr > Constants.PageSize - Constants.PageTailerSize)
+            if (ptr < 0 || ptr > Constants.PageSize - Constants.PageFooterSize)
             {
                 throw new PageCorruptedException(Current);
             }

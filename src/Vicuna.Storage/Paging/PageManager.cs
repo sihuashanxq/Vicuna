@@ -7,14 +7,11 @@ namespace Vicuna.Engine.Paging
 {
     public class PageManager
     {
-        public IPageFreeHandler FreeHandler { get; }
-
         public Dictionary<int, File> Files { get; }
 
-        public PageManager(Dictionary<int, File> files, IPageFreeHandler handler)
+        public PageManager(Dictionary<int, File> files)
         {
             Files = files ?? throw new ArgumentNullException(nameof(files));
-            FreeHandler = handler ?? throw new ArgumentNullException(nameof(handler));
         }
 
         protected virtual File GetFile(int id)

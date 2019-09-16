@@ -122,12 +122,12 @@ namespace Vicuna.Engine.Transactions
             Logger.AddRange(values);
         }
 
-        public void WriteFixedBTreePageDeleteEntry(PagePosition pos, ushort index)
+        public void WriteFixedBTreePageDeleteEntry(PagePosition pos, int index)
         {
             Logger.Add((byte)LogFlags.FBPAGE_DELETE_ENTRY);
             Logger.AddRange(BitConverter.GetBytes(pos.FileId));
             Logger.AddRange(BitConverter.GetBytes(pos.PageNumber));
-            Logger.AddRange(BitConverter.GetBytes(index));
+            Logger.AddRange(BitConverter.GetBytes((ushort)index));
         }
 
         public void WriteFixedBTreeBranchPageInsertEntry(PagePosition pos, long key, long lPageNumber, long rPageNumber)

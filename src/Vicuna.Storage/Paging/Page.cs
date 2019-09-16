@@ -15,10 +15,10 @@ namespace Vicuna.Engine.Paging
             get => ref ReadAt<PageHeader>(0);
         }
 
-        public ref PageTailer Tailer
+        public ref PageFooter Footer
         {
             [MethodImpl(MethodImplOptions.AggressiveInlining)]
-            get => ref ReadAt<PageTailer>(Size - 1 - PageTailer.SizeOf, PageTailer.SizeOf);
+            get => ref ReadAt<PageFooter>(Size - 1 - PageFooter.SizeOf, PageFooter.SizeOf);
         }
 
         public ref PagePosition Position
