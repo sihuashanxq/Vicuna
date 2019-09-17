@@ -2,16 +2,16 @@
 
 namespace Vicuna.Engine.Data.Trees.Fixed
 {
-    public static class FreeFixedTreePageExtensions
+    public static class FixedSizeTreePageExtensions
     {
-        public static FreeFixedTreePage AsFixed(this Page page)
+        public static FixedSizeTreePage AsFixed(this Page page)
         {
             if (page == null)
             {
                 return null;
             }
 
-            return new FreeFixedTreePage(page.Data);
+            return new FixedSizeTreePage(page.Data);
         }
     }
 }

@@ -3,7 +3,7 @@ using Vicuna.Engine.Transactions;
 
 namespace Vicuna.Engine.Data.Trees.Fixed
 {
-    public partial class FreeFixedTree
+    public partial class FixedSizeTree
     {
         public void AddEntry(LowLevelTransaction lltx, long key, Span<byte> value, bool logStart = true)
         {
@@ -25,7 +25,7 @@ namespace Vicuna.Engine.Data.Trees.Fixed
             }
         }
 
-        protected void AddEntry(LowLevelTransaction lltx, FreeFixedTreePage page, long key, Span<byte> value)
+        protected void AddEntry(LowLevelTransaction lltx, FixedSizeTreePage page, long key, Span<byte> value)
         {
             if (!page.AllocForKey(key, out var matchFlags, out _, out var entry))
             {
@@ -51,7 +51,7 @@ namespace Vicuna.Engine.Data.Trees.Fixed
             lltx.WriteFixedBTreeLeafPageInsertEntry(page.Position, key, value);
         }
 
-        protected void AddBranchEntry(LowLevelTransaction lltx, FreeFixedTreePage page, FreeFixedTreePage leaf, long lPageNumber, long rPageNumber, long key)
+        protected void AddBranchEntry(LowLevelTransaction lltx, FixedSizeTreePage page, FixedSizeTreePage leaf, long lPageNumber, long rPageNumber, long key)
         {
             ref var fixedHeader = ref page.FixedHeader;
             if (!fixedHeader.NodeFlags.HasFlag(TreeNodeFlags.Branch))

@@ -32,18 +32,21 @@ namespace Vicuna.Engine.Data.Trees
         public ushort Upper;
 
         [FieldOffset(41)]
+        public byte Depth;
+
+        [FieldOffset(42)]
         public ushort Count;
 
-        [FieldOffset(43)]
+        [FieldOffset(44)]
         public ushort UsedSize;
 
-        [FieldOffset(45)]
+        [FieldOffset(46)]
         public TreeNodeFlags NodeFlags;
 
-        [FieldOffset(46)]
+        [FieldOffset(47)]
         public long LastTransactionId;
 
-        [FieldOffset(54)]
-        public fixed byte Reserved[SizeOf - 53 - 1];
+        [FieldOffset(55)]
+        public fixed byte Reserved[SizeOf - 55];
     }
 }

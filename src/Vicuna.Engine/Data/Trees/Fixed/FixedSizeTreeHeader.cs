@@ -3,7 +3,7 @@
 namespace Vicuna.Engine.Data.Trees.Fixed
 {
     [StructLayout(LayoutKind.Explicit, Pack = 1, Size = SizeOf)]
-    public unsafe struct FreeFixedTreePageHeader
+    public unsafe struct FixedSizeTreeHeader
     {
         internal const int SizeOf = 96;
 
@@ -26,10 +26,10 @@ namespace Vicuna.Engine.Data.Trees.Fixed
         public long NextPageNumber;
 
         [FieldOffset(37)]
-        public ushort Count;
-
-        [FieldOffset(39)]
         public byte Depth;
+
+        [FieldOffset(38)]
+        public ushort Count;
 
         [FieldOffset(40)]
         public byte DataElementSize;
@@ -56,10 +56,10 @@ namespace Vicuna.Engine.Data.Trees.Fixed
                     return 21;
                 case nameof(NextPageNumber):
                     return 29;
-                case nameof(Count):
-                    return 37;
                 case nameof(Depth):
-                    return 39;
+                    return 37;
+                case nameof(Count):
+                    return 38;
                 case nameof(DataElementSize):
                     return 40;
                 case nameof(NodeFlags):

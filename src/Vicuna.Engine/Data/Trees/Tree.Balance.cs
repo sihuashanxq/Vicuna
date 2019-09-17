@@ -8,9 +8,14 @@ namespace Vicuna.Engine.Data.Trees
 {
     public partial class Tree
     {
-        public TreePageCursor SplitPage(LowLevelTransaction tx, TreePageCursor cursor, Span<byte> key, int index)
+        public void SplitPage(LowLevelTransaction lltx, TreePage page, Span<byte> key, int index)
         {
-            return null;
+
+        }
+
+        protected struct SplitContext
+        {
+
         }
     }
 }

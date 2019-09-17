@@ -3,14 +3,14 @@ using Vicuna.Engine.Transactions;
 
 namespace Vicuna.Engine.Data.Trees.Fixed
 {
-    public partial class FreeFixedTree
+    public partial class FixedSizeTree
     {
-        public bool RemoveEntry(LowLevelTransaction lltx, long key, out FreeFixedTreeNodeEntry entry)
+        public bool RemoveEntry(LowLevelTransaction lltx, long key, out FixedSizeTreeNodeEntry entry)
         {
             var page = GetPageForUpdate(lltx, key, Constants.BTreeLeafPageDepth);
             if (page == null)
             {
-                entry = FreeFixedTreeNodeEntry.Empty;
+                entry = FixedSizeTreeNodeEntry.Empty;
                 return false;
             }
 
@@ -21,7 +21,7 @@ namespace Vicuna.Engine.Data.Trees.Fixed
 
             if (page.LastMatch != 0 || page.LastMatchIndex < 0)
             {
-                entry = FreeFixedTreeNodeEntry.Empty;
+                entry = FixedSizeTreeNodeEntry.Empty;
                 return false;
             }
 
@@ -44,7 +44,7 @@ namespace Vicuna.Engine.Data.Trees.Fixed
             return true;
         }
 
-        protected void RemovePageRecursion(LowLevelTransaction lltx, FreeFixedTreePage page, long removedKey)
+        protected void RemovePageRecursion(LowLevelTransaction lltx, FixedSizeTreePage page, long removedKey)
         {
             var branch = GetPageForUpdate(lltx, removedKey, (byte)(page.Depth - 1));
             if (branch != null && branch.FixedHeader.Count == 2)
@@ -60,7 +60,7 @@ namespace Vicuna.Engine.Data.Trees.Fixed
                 ref var prevHeader = ref prev.FixedHeader;
                 prevHeader.NextPageNumber = header.NextPageNumber;
 
-                lltx.WriteByte8(prev.Position, FreeFixedTreePageHeader.Offset("NextPageNumber"), header.NextPageNumber);
+                lltx.WriteByte8(prev.Position, FixedSizeTreeHeader.Offset("NextPageNumber"), header.NextPageNumber);
             }
 
             if (header.NextPageNumber != -1)
@@ -69,7 +69,7 @@ namespace Vicuna.Engine.Data.Trees.Fixed
                 ref var nextHeader = ref next.FixedHeader;
                 nextHeader.PrevPageNumber = header.PrevPageNumber;
 
-                lltx.WriteByte8(next.Position, FreeFixedTreePageHeader.Offset("PrevPageNumber"), header.PrevPageNumber);
+                lltx.WriteByte8(next.Position, FixedSizeTreeHeader.Offset("PrevPageNumber"), header.PrevPageNumber);
             }
 
             if (page.IsRoot)
@@ -103,13 +103,13 @@ namespace Vicuna.Engine.Data.Trees.Fixed
             AddEntry(lltx, header.PageNumber, Span<byte>.Empty, false);
         }
 
-        protected void RemoveBranchRecursion(LowLevelTransaction lltx, FreeFixedTreePage page, FreeFixedTreePage branch)
+        protected void RemoveBranchRecursion(LowLevelTransaction lltx, FixedSizeTreePage page, FixedSizeTreePage branch)
         {
             var lastEntry = branch.GetNodeEntry(1);
             var firstEntry = branch.GetNodeEntry(0);
 
-            var last = default(FreeFixedTreePage);
-            var first = default(FreeFixedTreePage);
+            var last = default(FixedSizeTreePage);
+            var first = default(FixedSizeTreePage);
 
             ref var fixedHeader = ref page.FixedHeader;
             if (fixedHeader.PageNumber == firstEntry.PageNumber)
@@ -137,7 +137,7 @@ namespace Vicuna.Engine.Data.Trees.Fixed
                 ref var prevHeader = ref prev.FixedHeader;
                 prevHeader.NextPageNumber = lastHeader.NextPageNumber;
 
-                lltx.WriteByte8(prev.Position, FreeFixedTreePageHeader.Offset("NextPageNumber"), lastHeader.NextPageNumber);
+                lltx.WriteByte8(prev.Position, FixedSizeTreeHeader.Offset("NextPageNumber"), lastHeader.NextPageNumber);
             }
 
             if (lastHeader.NextPageNumber > 0)
@@ -146,7 +146,7 @@ namespace Vicuna.Engine.Data.Trees.Fixed
                 ref var nextHeader = ref next.FixedHeader;
                 nextHeader.PrevPageNumber = firstHeader.PrevPageNumber;
 
-                lltx.WriteByte8(next.Position, FreeFixedTreePageHeader.Offset("PrevPageNumber"), firstHeader.PrevPageNumber);
+                lltx.WriteByte8(next.Position, FixedSizeTreeHeader.Offset("PrevPageNumber"), firstHeader.PrevPageNumber);
             }
 
             branch.RemoveEntry(lltx, 0);

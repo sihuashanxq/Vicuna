@@ -5,9 +5,9 @@ using Vicuna.Engine.Transactions;
 
 namespace Vicuna.Engine.Data.Trees.Fixed
 {
-    public partial class FreeFixedTree
+    public partial class FixedSizeTree
     {
-        private SplitContext SplitLeaf(LowLevelTransaction lltx, FreeFixedTreePage current, long pageNumber, int index)
+        private SplitContext SplitLeaf(LowLevelTransaction lltx, FixedSizeTreePage current, long pageNumber, int index)
         {
             if (!current.IsLeaf)
             {
@@ -37,7 +37,7 @@ namespace Vicuna.Engine.Data.Trees.Fixed
             return ctx;
         }
 
-        private SplitContext SplitBranch(LowLevelTransaction lltx, FreeFixedTreePage current, FreeFixedTreePage leaf, int index)
+        private SplitContext SplitBranch(LowLevelTransaction lltx, FixedSizeTreePage current, FixedSizeTreePage leaf, int index)
         {
             if (!current.IsBranch)
             {
@@ -113,8 +113,8 @@ namespace Vicuna.Engine.Data.Trees.Fixed
                 siblingHeader.PrevPageNumber = currentHeader.PageNumber;
                 currentHeader.NextPageNumber = siblingHeader.PageNumber;
 
-                lltx.WriteByte8(current.Position, FreeFixedTreePageHeader.Offset("NextPageNumber"), siblingHeader.PageNumber);
-                lltx.WriteByte8(sibling.Position, FreeFixedTreePageHeader.Offset("PrevPageNumber"), currentHeader.PageNumber);
+                lltx.WriteByte8(current.Position, FixedSizeTreeHeader.Offset("NextPageNumber"), siblingHeader.PageNumber);
+                lltx.WriteByte8(sibling.Position, FixedSizeTreeHeader.Offset("PrevPageNumber"), currentHeader.PageNumber);
 
                 if (oldSibling != null)
                 {
@@ -123,8 +123,8 @@ namespace Vicuna.Engine.Data.Trees.Fixed
                     siblingHeader.NextPageNumber = oldSiblingHeader.PageNumber;
                     oldSiblingHeader.PrevPageNumber = siblingHeader.PageNumber;
 
-                    lltx.WriteByte8(sibling.Position, FreeFixedTreePageHeader.Offset("NextPageNumber"), siblingHeader.NextPageNumber);
-                    lltx.WriteByte8(oldSibling.Position, FreeFixedTreePageHeader.Offset("PrevPageNumber"), oldSiblingHeader.PrevPageNumber);
+                    lltx.WriteByte8(sibling.Position, FixedSizeTreeHeader.Offset("NextPageNumber"), siblingHeader.NextPageNumber);
+                    lltx.WriteByte8(oldSibling.Position, FixedSizeTreeHeader.Offset("PrevPageNumber"), oldSiblingHeader.PrevPageNumber);
                 }
             }
 
@@ -137,7 +137,7 @@ namespace Vicuna.Engine.Data.Trees.Fixed
             AddBranchEntry(lltx, ctx.Parent, ctx.Leaf, currentHeader.PageNumber, siblingHeader.PageNumber, key);
         }
 
-        private FreeFixedTreePage ModifyPage(LowLevelTransaction lltx, int fileId, long pageNumber)
+        private FixedSizeTreePage ModifyPage(LowLevelTransaction lltx, int fileId, long pageNumber)
         {
             if (pageNumber < 0 || fileId < 0)
             {
@@ -147,7 +147,7 @@ namespace Vicuna.Engine.Data.Trees.Fixed
             return lltx.ModifyPage(fileId, pageNumber).AsFixed();
         }
 
-        private FreeFixedTreePage CreatePage(LowLevelTransaction lltx, byte depth, int fileId, long pageNumber, TreeNodeFlags flags, byte dataSize)
+        private FixedSizeTreePage CreatePage(LowLevelTransaction lltx, byte depth, int fileId, long pageNumber, TreeNodeFlags flags, byte dataSize)
         {
             var fixedPage = ModifyPage(lltx, fileId, pageNumber);
             if (fixedPage == null)
@@ -180,15 +180,15 @@ namespace Vicuna.Engine.Data.Trees.Fixed
         {
             public int Index;
 
-            public FreeFixedTreePage Leaf;
+            public FixedSizeTreePage Leaf;
 
-            public FreeFixedTreePage Parent;
+            public FixedSizeTreePage Parent;
 
-            public FreeFixedTreePage Current;
+            public FixedSizeTreePage Current;
 
-            public FreeFixedTreePage Sibling;
+            public FixedSizeTreePage Sibling;
 
-            public FreeFixedTreePage OldSibling;
+            public FixedSizeTreePage OldSibling;
         }
     }
 }

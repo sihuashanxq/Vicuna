@@ -2,11 +2,11 @@
 
 namespace Vicuna.Engine.Data.Trees.Fixed
 {
-    public partial class FreeFixedTree
+    public partial class FixedSizeTree
     {
-        public FreeFixedTreeCursor GetCursor(LowLevelTransaction lltx)
+        public FixedSizeTreeCursor GetCursor(LowLevelTransaction lltx)
         {
-            return new FreeFixedTreeCursor()
+            return new FixedSizeTreeCursor()
             {
                 Tree = this,
                 Index = 0,
@@ -14,12 +14,12 @@ namespace Vicuna.Engine.Data.Trees.Fixed
             };
         }
 
-        public bool TryGetEntry(LowLevelTransaction lltx, long key, out FreeFixedTreeNodeEntry nodeEntry)
+        public bool TryGetEntry(LowLevelTransaction lltx, long key, out FixedSizeTreeNodeEntry nodeEntry)
         {
             var page = GetPageForQuery(lltx, key, Constants.BTreeLeafPageDepth);
             if (page == null)
             {
-                nodeEntry = FreeFixedTreeNodeEntry.Empty;
+                nodeEntry = FixedSizeTreeNodeEntry.Empty;
                 return false;
             }
 
@@ -30,7 +30,7 @@ namespace Vicuna.Engine.Data.Trees.Fixed
 
             if (page.LastMatch != 0 || page.LastMatchIndex < 0)
             {
-                nodeEntry = FreeFixedTreeNodeEntry.Empty;
+                nodeEntry = FixedSizeTreeNodeEntry.Empty;
                 return false;
             }
 

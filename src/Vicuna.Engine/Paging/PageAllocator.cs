@@ -1,18 +1,11 @@
-﻿using System.Collections.Generic;
+using System.Collections.Generic;
+using Vicuna.Engine.Data.Trees.Fixed;
+using Vicuna.Engine.Paging;
 using Vicuna.Engine.Transactions;
 
-namespace Vicuna.Engine.Paging
+public abstract class PageAllocator
 {
-    public class PageAllocator
-    {
-        public void Release(LowLevelTransaction lltx, PagePosition page)
-        {
+    public abstract void Free(LowLevelTransaction lltx, PagePosition page);
 
-        }
-
-        public IEnumerable<PagePosition> Alloc(LowLevelTransaction lltx, int fileId, int count)
-        {
-            throw null;
-        }
-    }
+    public abstract PagePosition[] Allocate(LowLevelTransaction lltx, int fileId, int count);
 }

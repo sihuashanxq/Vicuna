@@ -8,7 +8,7 @@ namespace Vicuna.Engine.Data.Trees
     {
         public DBOperationFlags AddClusterEntry(LowLevelTransaction tx, KVTuple kv)
         {
-            var cursor = GetCursorForUpdate(tx, kv.Key, -1);
+            var cursor = GetCursorForUpdate(tx, kv.Key, Constants.BTreeLeafPageDepth);
             if (cursor.LastMatch == 0)
             {
                 return UpdateClusterEntry(tx, cursor, kv);
@@ -17,14 +17,14 @@ namespace Vicuna.Engine.Data.Trees
             return AddClusterEntry(tx, cursor, kv);
         }
 
-        protected DBOperationFlags AddClusterEntry(LowLevelTransaction tx, TreePageCursor cursor, KVTuple kv)
+        protected DBOperationFlags AddClusterEntry(LowLevelTransaction tx, TreePage cursor, KVTuple kv)
         {
             if (kv.Length > MaxEntrySizeInPage)
             {
                 return AddClusterOverflowEntry(tx, cursor, kv);
             }
 
-            if (!cursor.Allocate(cursor.LastMatchIndex, (ushort) kv.Length, TreeNodeHeaderFlags.Primary, out var entry))
+            if (!cursor.Alloc(cursor.LastMatchIndex, (ushort)kv.Length, TreeNodeHeaderFlags.Primary, out var entry))
             {
                 //SplitPage();
             }
@@ -36,8 +36,8 @@ namespace Vicuna.Engine.Data.Trees
             kv.Value.CopyTo(entry.Value);
 
             h.IsDeleted = false;
-            h.KeySize = (ushort) kv.Key.Length;
-            h.DataSize = (ushort) kv.Value.Length;
+            h.KeySize = (ushort)kv.Key.Length;
+            h.DataSize = (ushort)kv.Value.Length;
             h.NodeFlags = TreeNodeHeaderFlags.Primary;
             t.TransactionNumber = tx.Id;
             t.TransactionRollbackNumber = -1;
@@ -45,7 +45,7 @@ namespace Vicuna.Engine.Data.Trees
             return DBOperationFlags.Ok;
         }
 
-        protected DBOperationFlags AddClusterOverflowEntry(LowLevelTransaction tx, TreePageCursor cursor, KVTuple kv)
+        protected DBOperationFlags AddClusterOverflowEntry(LowLevelTransaction tx, TreePage cursor, KVTuple kv)
         {
             return DBOperationFlags.Ok;
         }

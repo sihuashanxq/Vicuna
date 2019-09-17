@@ -2,15 +2,15 @@
 
 namespace Vicuna.Engine.Data.Trees.Fixed
 {
-    public struct FreeFixedTreeCursor
+    public struct FixedSizeTreeCursor
     {
         internal int Index;
 
-        internal FreeFixedTree Tree;
+        internal FixedSizeTree Tree;
 
-        internal FreeFixedTreePage Current;
+        internal FixedSizeTreePage Current;
 
-        public bool MoveNext(LowLevelTransaction lltx, out FreeFixedTreeNodeEntry entry)
+        public bool MoveNext(LowLevelTransaction lltx, out FixedSizeTreeNodeEntry entry)
         {
             ref var fixedHeader = ref Current.FixedHeader;
             if (fixedHeader.Count > Index)
@@ -22,7 +22,7 @@ namespace Vicuna.Engine.Data.Trees.Fixed
 
             if (fixedHeader.NextPageNumber <= 0)
             {
-                entry = FreeFixedTreeNodeEntry.Empty;
+                entry = FixedSizeTreeNodeEntry.Empty;
                 return false;
             }
 

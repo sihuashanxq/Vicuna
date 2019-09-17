@@ -2,11 +2,9 @@
 {
     public enum PageHeaderFlags : byte
     {
-        Root,
+        File,
 
         BTree,
-
-        Journal,
 
         Overflow
     }

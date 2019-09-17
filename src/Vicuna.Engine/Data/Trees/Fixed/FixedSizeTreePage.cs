@@ -5,13 +5,13 @@ using Vicuna.Engine.Transactions;
 
 namespace Vicuna.Engine.Data.Trees.Fixed
 {
-    public class FreeFixedTreePage : Page
+    public class FixedSizeTreePage : Page
     {
         public int LastMatch;
 
         public int LastMatchIndex;
 
-        public FreeFixedTreePage(byte[] data) : base(data)
+        public FixedSizeTreePage(byte[] data) : base(data)
         {
             LastMatch = 0;
             LastMatchIndex = -1;
@@ -47,12 +47,12 @@ namespace Vicuna.Engine.Data.Trees.Fixed
             get => GetNodeKey(FixedHeader.Count - (IsLeaf ? 1 : 2));
         }
 
-        public ref FreeFixedTreePageHeader FixedHeader
+        public ref FixedSizeTreeHeader FixedHeader
         {
-            get => ref Header.Cast<FreeFixedTreePageHeader>();
+            get => ref Header.Cast<FixedSizeTreeHeader>();
         }
 
-        public bool Alloc(int index, out FreeFixedTreeNodeEntry entry)
+        public bool Alloc(int index, out FixedSizeTreeNodeEntry entry)
         {
             ref var fixedHeader = ref FixedHeader;
             var ptr = GetNodePtr(index);
@@ -60,7 +60,7 @@ namespace Vicuna.Engine.Data.Trees.Fixed
             var nodeSize = GetNodeSize(ref fixedHeader);
             if (nodeSize + usedSize > Constants.PageSize)
             {
-                entry = FreeFixedTreeNodeEntry.Empty;
+                entry = FixedSizeTreeNodeEntry.Empty;
                 return false;
             }
 
@@ -73,7 +73,7 @@ namespace Vicuna.Engine.Data.Trees.Fixed
                 from.CopyTo(to);
             }
 
-            entry = new FreeFixedTreeNodeEntry()
+            entry = new FixedSizeTreeNodeEntry()
             {
                 Index = (short)index,
                 Buffer = ReadAt(ptr, nodeSize),
@@ -85,7 +85,7 @@ namespace Vicuna.Engine.Data.Trees.Fixed
             return true;
         }
 
-        public bool AllocForKey(long key, out int matchFlags, out int matchIndex, out FreeFixedTreeNodeEntry entry)
+        public bool AllocForKey(long key, out int matchFlags, out int matchIndex, out FixedSizeTreeNodeEntry entry)
         {
             Search(key);
 
@@ -100,7 +100,7 @@ namespace Vicuna.Engine.Data.Trees.Fixed
             return Alloc(matchIndex, out entry);
         }
 
-        public FreeFixedTreeNodeEntry RemoveEntry(LowLevelTransaction lltx, int index)
+        public FixedSizeTreeNodeEntry RemoveEntry(LowLevelTransaction lltx, int index)
         {
             ref var fixedHeader = ref FixedHeader;
             if (index < 0 || index > fixedHeader.Count)
@@ -112,7 +112,7 @@ namespace Vicuna.Engine.Data.Trees.Fixed
             var size = GetNodeSize(ref fixedHeader);
             var last = GetNodePtr(fixedHeader.Count - 1);
             var node = ReadAt(ptr, size);
-            var entry = new FreeFixedTreeNodeEntry()
+            var entry = new FixedSizeTreeNodeEntry()
             {
                 Index = (short)index,
                 Buffer = node.ToArray(),
@@ -206,7 +206,7 @@ namespace Vicuna.Engine.Data.Trees.Fixed
             }
         }
 
-        public void CopyEntriesTo(FreeFixedTreePage page, int index)
+        public void CopyEntriesTo(FixedSizeTreePage page, int index)
         {
             ref var fixedHeader = ref FixedHeader;
             var ptr = GetNodePtr(index);
@@ -233,18 +233,18 @@ namespace Vicuna.Engine.Data.Trees.Fixed
             }
 
             var ptr = GetNodePtr(index);
-            if (ptr + FreeFixedTreeNodeHeader.SizeOf > Constants.PageSize - Constants.PageFooterSize)
+            if (ptr + FixedSizeTreeNodeHeader.SizeOf > Constants.PageSize - Constants.PageFooterSize)
             {
                 throw new PageDamageException(this);
             }
 
-            return ReadAt<FreeFixedTreeNodeHeader>(ptr, FreeFixedTreeNodeHeader.SizeOf).PageNumber;
+            return ReadAt<FixedSizeTreeNodeHeader>(ptr, FixedSizeTreeNodeHeader.SizeOf).PageNumber;
         }
 
         [MethodImpl(MethodImplOptions.AggressiveInlining)]
         public ushort GetNodePtr(int index)
         {
-            return (ushort)(index * (FixedHeader.DataElementSize + FreeFixedTreeNodeHeader.SizeOf) + Constants.PageHeaderSize);
+            return (ushort)(index * (FixedHeader.DataElementSize + FixedSizeTreeNodeHeader.SizeOf) + Constants.PageHeaderSize);
         }
 
         [MethodImpl(MethodImplOptions.AggressiveInlining)]
@@ -261,7 +261,7 @@ namespace Vicuna.Engine.Data.Trees.Fixed
                 throw new ArgumentOutOfRangeException(nameof(index));
             }
 
-            var ptr = GetNodePtr(index) + FreeFixedTreeNodeHeader.SizeOf;
+            var ptr = GetNodePtr(index) + FixedSizeTreeNodeHeader.SizeOf;
             if (ptr + fixedHeader.DataElementSize > Constants.PageSize - Constants.PageFooterSize)
             {
                 throw new PageDamageException(this);
@@ -271,13 +271,13 @@ namespace Vicuna.Engine.Data.Trees.Fixed
         }
 
         [MethodImpl(MethodImplOptions.AggressiveInlining)]
-        public ref FreeFixedTreeNodeHeader GetNodeHeader(ushort ptr)
+        public ref FixedSizeTreeNodeHeader GetNodeHeader(ushort ptr)
         {
-            return ref ReadAt<FreeFixedTreeNodeHeader>(ptr, FreeFixedTreeNodeHeader.SizeOf);
+            return ref ReadAt<FixedSizeTreeNodeHeader>(ptr, FixedSizeTreeNodeHeader.SizeOf);
         }
 
         [MethodImpl(MethodImplOptions.AggressiveInlining)]
-        public ref FreeFixedTreeNodeHeader GetNodeHeader(int index)
+        public ref FixedSizeTreeNodeHeader GetNodeHeader(int index)
         {
             var ptr = GetNodePtr(index);
             if (ptr > Constants.PageSize - Constants.PageFooterSize ||
@@ -289,7 +289,7 @@ namespace Vicuna.Engine.Data.Trees.Fixed
             return ref GetNodeHeader(ptr);
         }
 
-        public FreeFixedTreeNodeEntry GetNodeEntry(int index)
+        public FixedSizeTreeNodeEntry GetNodeEntry(int index)
         {
             ref var fixedHeader = ref FixedHeader;
             var ptr = GetNodePtr(index);
@@ -299,7 +299,7 @@ namespace Vicuna.Engine.Data.Trees.Fixed
                 throw new PageDamageException(this);
             }
 
-            return new FreeFixedTreeNodeEntry()
+            return new FixedSizeTreeNodeEntry()
             {
                 Index = (short)index,
                 Buffer = ReadAt(ptr, GetNodeSize(ref fixedHeader)),
@@ -309,13 +309,13 @@ namespace Vicuna.Engine.Data.Trees.Fixed
         }
 
         [MethodImpl(MethodImplOptions.AggressiveInlining)]
-        public int GetNodeSize(ref FreeFixedTreePageHeader fixeHeader)
+        public int GetNodeSize(ref FixedSizeTreeHeader fixeHeader)
         {
-            return fixeHeader.DataElementSize + FreeFixedTreeNodeHeader.SizeOf;
+            return fixeHeader.DataElementSize + FixedSizeTreeNodeHeader.SizeOf;
         }
 
         [MethodImpl(MethodImplOptions.AggressiveInlining)]
-        public int GetUsedSize(ref FreeFixedTreePageHeader fixedHeader)
+        public int GetUsedSize(ref FixedSizeTreeHeader fixedHeader)
         {
             return fixedHeader.Count * GetNodeSize(ref fixedHeader) + Constants.PageHeaderSize + Constants.PageFooterSize;
         }

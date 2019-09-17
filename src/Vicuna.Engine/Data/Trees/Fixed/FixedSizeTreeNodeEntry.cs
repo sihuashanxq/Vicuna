@@ -3,7 +3,7 @@ using System.Runtime.CompilerServices;
 
 namespace Vicuna.Engine.Data.Trees.Fixed
 {
-    public ref struct FreeFixedTreeNodeEntry
+    public ref struct FixedSizeTreeNodeEntry
     {
         public short Index { get; set; }
 
@@ -13,7 +13,7 @@ namespace Vicuna.Engine.Data.Trees.Fixed
 
         public Span<byte> Buffer { get; set; }
 
-        public static FreeFixedTreeNodeEntry Empty => new FreeFixedTreeNodeEntry()
+        public static FixedSizeTreeNodeEntry Empty => new FixedSizeTreeNodeEntry()
         {
             Index = -1,
             Buffer = Span<byte>.Empty,
@@ -26,7 +26,7 @@ namespace Vicuna.Engine.Data.Trees.Fixed
 
         public Span<byte> Value
         {
-            get => Buffer.Slice(FreeFixedTreeNodeHeader.SizeOf, DataSize);
+            get => Buffer.Slice(FixedSizeTreeNodeHeader.SizeOf, DataSize);
         }
 
         public ref long PageNumber
@@ -42,9 +42,9 @@ namespace Vicuna.Engine.Data.Trees.Fixed
             }
         }
 
-        public ref FreeFixedTreeNodeHeader Header
+        public ref FixedSizeTreeNodeHeader Header
         {
-            get => ref Unsafe.As<byte, FreeFixedTreeNodeHeader>(ref Buffer[0]);
+            get => ref Unsafe.As<byte, FixedSizeTreeNodeHeader>(ref Buffer[0]);
         }
     }
 }

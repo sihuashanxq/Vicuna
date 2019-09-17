@@ -11,11 +11,13 @@ namespace Vicuna.Engine.Transactions
 {
     public partial class LowLevelTransaction : IDisposable
     {
-        internal long Id { get; }
+        public long Id { get; }
+
+        public bool Modified { get; set; }
 
         internal BufferPool Buffers { get; }
 
-        internal FastList<byte> Logger { get; } = new FastList<byte>();
+        internal FastList<byte> Logger { get; }
 
         internal PageManager PageManager { get; }
 
@@ -31,8 +33,9 @@ namespace Vicuna.Engine.Transactions
         {
             Id = id;
             Buffers = buffers;
-            Modifies = new Dictionary<PagePosition, Page>();
+            Logger = new FastList<byte>();
             Latches = new Stack<LatchScope>();
+            Modifies = new Dictionary<PagePosition, Page>();
             LatchMaps = new Dictionary<object, LatchScope>();
         }
 
