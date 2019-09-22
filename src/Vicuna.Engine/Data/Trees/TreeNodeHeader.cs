@@ -8,8 +8,6 @@ namespace Vicuna.Engine.Data.Trees
     {
         public const ushort SizeOf = 12;
 
-        public const ushort SlotSize = sizeof(ushort);
-
         [FieldOffset(0)]
         public bool IsDeleted;
 
@@ -17,10 +15,10 @@ namespace Vicuna.Engine.Data.Trees
         public ushort KeySize;
 
         [FieldOffset(3)]
-        public ushort DataSize;
-
-        [FieldOffset(3)]
         public long PageNumber;
+
+        [FieldOffset(9)]
+        public ushort DataSize;
 
         [FieldOffset(11)]
         public TreeNodeHeaderFlags NodeFlags;
@@ -28,15 +26,14 @@ namespace Vicuna.Engine.Data.Trees
         [MethodImpl(MethodImplOptions.AggressiveInlining)]
         public ushort GetSize()
         {
-            switch (NodeFlags)
+            var hasValue = NodeFlags.HasValue();
+            var hasVersion = NodeFlags.HasVersion();
+            if (hasVersion)
             {
-                case TreeNodeHeaderFlags.Primary:
-                    return (ushort)(SizeOf + SlotSize + KeySize + DataSize + TreeNodeTransactionHeader.SizeOf);
-                case TreeNodeHeaderFlags.Data:
-                    return (ushort)(SizeOf + SlotSize + KeySize + DataSize);
-                default:
-                    return (ushort)(SizeOf + SlotSize + KeySize);
+                return (ushort)(SizeOf + sizeof(short) + KeySize + (hasValue ? DataSize : 0) + TreeNodeVersionHeader.SizeOf);
             }
+
+            return (ushort)(SizeOf + sizeof(short) + KeySize + (hasValue ? DataSize : 0));
         }
     }
 }

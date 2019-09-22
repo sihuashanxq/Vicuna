@@ -3,7 +3,7 @@
 namespace Vicuna.Engine.Data.Trees
 {
     [StructLayout(LayoutKind.Explicit, Pack = 1, Size = SizeOf)]
-    public struct TreeNodeTransactionHeader
+    public struct TreeNodeVersionHeader
     {
         public const ushort SizeOf = sizeof(long) + sizeof(long);
 

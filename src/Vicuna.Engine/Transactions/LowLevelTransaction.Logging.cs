@@ -65,9 +65,14 @@ namespace Vicuna.Engine.Transactions
             Logger.AddRange(values);
         }
 
-        public void WriteBTreeLeafPageInsertEntry()
+        public void WriteBTreeLeafPageInsertEntry(PagePosition pos, TreeNodeHeaderFlags nodeFlags, Span<byte> key, Span<byte> value)
         {
-
+            Logger.Add((byte)LogFlags.BPAGE_LEAF_INSERT_ENTRY);
+            Logger.AddRange(BitConverter.GetBytes(pos.FileId));
+            Logger.AddRange(BitConverter.GetBytes(pos.PageNumber));
+            Logger.Add((byte)nodeFlags);
+            Logger.AddRange(key);
+            Logger.AddRange(value);
         }
 
         public void WriteBTreeLeafPageDeleteEntry()
@@ -75,9 +80,14 @@ namespace Vicuna.Engine.Transactions
 
         }
 
-        public void WriteBTreeBranchPageInsertEntry()
+        public void WriteBTreeBranchPageInsertEntry(PagePosition pos, Span<byte> key, long lPageNumber, long rPageNumber)
         {
-
+            Logger.Add((byte)LogFlags.BPAGE_BRANCH_INSERT_ENTRY);
+            Logger.AddRange(BitConverter.GetBytes(pos.FileId));
+            Logger.AddRange(BitConverter.GetBytes(pos.PageNumber));
+            Logger.AddRange(key);
+            Logger.AddRange(BitConverter.GetBytes(lPageNumber));
+            Logger.AddRange(BitConverter.GetBytes(rPageNumber));
         }
 
         public void WriteBTreeBranchPageDeleteEntry()
@@ -95,14 +105,23 @@ namespace Vicuna.Engine.Transactions
 
         }
 
-        public void WriteBTreeLeafPageCreated(PagePosition pos)
+        public void WriteBTreePageCreated(PagePosition pos, TreeNodeFlags flags, byte depth)
         {
-
+            Logger.Add((byte)LogFlags.BPAGE_CREATED);
+            Logger.AddRange(BitConverter.GetBytes(pos.FileId));
+            Logger.AddRange(BitConverter.GetBytes(pos.PageNumber));
+            Logger.Add((byte)flags);
+            Logger.Add(depth);
         }
 
-        public void WriteBTreeBranchPageCreated()
+        public void WriteBTreeCopyEntries(PagePosition from, PagePosition to, int index)
         {
-
+            Logger.Add((byte)LogFlags.BPAGE_COPY_ENTRIES);
+            Logger.AddRange(BitConverter.GetBytes(from.FileId));
+            Logger.AddRange(BitConverter.GetBytes(from.PageNumber));
+            Logger.AddRange(BitConverter.GetBytes(to.FileId));
+            Logger.AddRange(BitConverter.GetBytes(to.PageNumber));
+            Logger.AddRange(BitConverter.GetBytes((short)index));
         }
 
         public void WriteBTreePageReorganize(PagePosition pos)

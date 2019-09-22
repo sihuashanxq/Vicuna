@@ -206,21 +206,23 @@ namespace Vicuna.Engine.Data.Trees.Fixed
             }
         }
 
-        public void CopyEntriesTo(FixedSizeTreePage page, int index)
+        public void CopyEntriesTo(LowLevelTransaction lltx, int startIndex, FixedSizeTreePage newPage)
         {
             ref var fixedHeader = ref FixedHeader;
-            var ptr = GetNodePtr(index);
-            var count = fixedHeader.Count - index;
+            var ptr = GetNodePtr(startIndex);
+            var count = fixedHeader.Count - startIndex;
             var len = count * GetNodeSize(ref fixedHeader);
 
             var from = ReadAt(ptr, len);
-            var to = page.ReadAt(Constants.PageHeaderSize, len);
+            var to = newPage.ReadAt(Constants.PageHeaderSize, len);
 
             from.CopyTo(to);
             from.Clear();
 
             fixedHeader.Count -= (ushort)count;
-            page.FixedHeader.Count = (ushort)count;
+            newPage.FixedHeader.Count = (ushort)count;
+
+            lltx.WriteFixedBTreeCopyEntries(Position, newPage.Position, startIndex);
         }
 
         [MethodImpl(MethodImplOptions.AggressiveInlining)]

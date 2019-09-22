@@ -7,7 +7,7 @@ namespace Vicuna.Engine.Paging
     {
         internal byte[] Data { get; }
 
-        internal virtual int Size => Data.Length;
+        internal virtual int Size => Constants.PageSize;
 
         public ref PageHeader Header
         {
@@ -18,7 +18,7 @@ namespace Vicuna.Engine.Paging
         public ref PageFooter Footer
         {
             [MethodImpl(MethodImplOptions.AggressiveInlining)]
-            get => ref ReadAt<PageFooter>(Size - 1 - PageFooter.SizeOf, PageFooter.SizeOf);
+            get => ref ReadAt<PageFooter>(Size - PageFooter.SizeOf, PageFooter.SizeOf);
         }
 
         public ref PagePosition Position

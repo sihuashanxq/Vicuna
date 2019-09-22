@@ -5,61 +5,47 @@ namespace Vicuna.Engine.Data.Trees
 {
     public ref struct TreeNodeEntry
     {
-        public ushort Slot;
-
         public short Index;
 
-        public ushort Position;
+        public Span<byte> Key;
 
-        public Span<byte> Data;
+        public Span<byte> Value;
+
+        public Span<byte> Buffer;
+
+        public Span<byte> Version;
 
         public static TreeNodeEntry Empty => new TreeNodeEntry()
         {
-            Slot = 0,
             Index = -1,
-            Data = Span<byte>.Empty,
-            Position = 0
+            Buffer = Span<byte>.Empty
         };
 
-        public Span<byte> Key
+        public void SetKey(Span<byte> key)
         {
-            get
-            {
-                return Data.Slice(TreeNodeHeader.SizeOf, Header.KeySize);
-            }
+            key.CopyTo(Key);
         }
 
-        public Span<byte> Value
+        public void SetValue(Span<byte> value)
         {
-            get
-            {
-                switch (Header.NodeFlags)
-                {
-                    case TreeNodeHeaderFlags.Primary:
-                        return Data.Slice(TreeNodeHeader.SizeOf + Header.KeySize + TreeNodeTransactionHeader.SizeOf, Header.DataSize);
-                    case TreeNodeHeaderFlags.Data:
-                        return Data.Slice(TreeNodeHeader.SizeOf + Header.KeySize, Header.DataSize);
-                    default:
-                        return Span<byte>.Empty;
-                }
-            }
+            value.CopyTo(Value);
         }
 
         public ref TreeNodeHeader Header
         {
-            get => ref Unsafe.As<byte, TreeNodeHeader>(ref Data[0]);
+            get => ref Unsafe.As<byte, TreeNodeHeader>(ref Buffer[0]);
         }
 
-        public ref TreeNodeTransactionHeader Transaction
+        public ref TreeNodeVersionHeader VersionHeader
         {
             get
             {
-                if (Header.NodeFlags != TreeNodeHeaderFlags.Primary)
+                if (!Header.NodeFlags.HasVersion())
                 {
-                    throw new InvalidOperationException($"only data node has tx header!");
+                    throw new InvalidOperationException($"err api invoke!");
                 }
 
-                return ref Unsafe.As<byte, TreeNodeTransactionHeader>(ref Data[TreeNodeHeader.SizeOf + Header.KeySize]);
+                return ref Unsafe.As<byte, TreeNodeVersionHeader>(ref Version[0]);
             }
         }
     }

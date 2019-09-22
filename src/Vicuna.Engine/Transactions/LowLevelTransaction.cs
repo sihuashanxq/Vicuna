@@ -145,17 +145,16 @@ namespace Vicuna.Engine.Transactions
 
         }
 
-        public IEnumerable<Page> AllocPage(int fileId, uint count)
+        public PagePosition AllocatePage(int fileId)
         {
-            var list = PageManager.AllocPageAtFree(this, fileId, count);
+            return new PagePosition(fileId, ++count);
+        }
 
-            for (var i = 0; i < list.Count; i++)
-            {
-                var pos = list[i];
-                var buffer = Buffers.AllocEntry(pos);
+        private static int count = 1;
 
-                yield return ModifyPage(buffer);
-            }
+        public PagePosition[] AllocatePage(int fileId, uint count)
+        {
+            return new PagePosition[count];
         }
 
         public LowLevelTransaction StartNew()

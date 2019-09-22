@@ -39,7 +39,7 @@ namespace Vicuna.Engine.Data.Trees
 
         public TreeRootHeader Root => _root;
 
-        public const ushort MaxEntrySizeInPage = (Constants.PageSize - Constants.PageHeaderSize - Constants.PageFooterSize) / 2 - TreeNodeHeader.SizeOf - TreeNodeTransactionHeader.SizeOf;
+        public const ushort MaxEntrySizeInPage = (Constants.PageSize - Constants.PageHeaderSize - Constants.PageFooterSize) / 2 - TreeNodeHeader.SizeOf - TreeNodeVersionHeader.SizeOf;
 
         public Tree(Index index, TreeRootHeader root, PageAllocator pageAllocator)
         {
@@ -71,9 +71,9 @@ namespace Vicuna.Engine.Data.Trees
             {
                 Flags = flags,
                 Index = _index,
-                Position = page.Position,
+                Page = page.Position,
                 Transaction = lltx.Transaction,
-                RecordSlot = page.LastMatchIndex,
+                RecordIndex = page.LastMatchIndex,
                 RecordCount = page.TreeHeader.Count,
             };
 

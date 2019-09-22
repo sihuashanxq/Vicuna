@@ -10,12 +10,12 @@ namespace Vicuna.Engine.Data.Trees
         protected DBOperationFlags UpdateClusterEntry(LowLevelTransaction tx, TreePage page, KVTuple kv)
         {
             var flags = LockRec(tx, page, LockFlags.Exclusive | LockFlags.Document);
-            if (flags == DBOperationFlags.Ok)
+            if (flags != DBOperationFlags.Ok)
             {
                 return flags;
             }
 
-            if (!page.TryGetNode(page.LastMatchIndex, out var entry))
+            if (!page.TryGetNodeEntry(page.LastMatchIndex, out var entry))
             {
                 throw new InvalidOperationException($"read the tree's entry for {kv.Key.ToString()} failed at page:{page.Position}! ");
             }
@@ -25,9 +25,9 @@ namespace Vicuna.Engine.Data.Trees
                 throw new InvalidOperationException($"duplicate key for {kv.Key.ToString()}");
             }
 
-            if (entry.Transaction.TransactionNumber == tx.Id)
+            if (entry.VersionHeader.TransactionNumber == tx.Id)
             {
-                return UpdateClusterEntry(tx, page, kv, ref entry, entry.Transaction.TransactionRollbackNumber);
+                return UpdateClusterEntry(tx, page, kv, ref entry, entry.VersionHeader.TransactionRollbackNumber);
             }
 
             var undo = BackUpUndoEntry(tx, page, page.LastMatchIndex);

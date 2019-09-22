@@ -261,7 +261,7 @@ namespace Vicuna.Engine.Locking
         /// <returns></returns>
         public DBOperationFlags LockRec(ref LockRequest req, out LockEntry entry)
         {
-            var locks = RecLocks.GetValueOrDefault(req.Position);
+            var locks = RecLocks.GetValueOrDefault(req.Page);
             if (locks == null || locks.Count == 0)
             {
                 entry = CreateRecLock(ref req);
@@ -273,7 +273,7 @@ namespace Vicuna.Engine.Locking
                 return DBOperationFlags.Ok;
             }
 
-            if (IsOthersHeldOrWaitConflictRecLock(req.Transaction, req.Position, req.RecordSlot, req.Flags))
+            if (IsOthersHeldOrWaitConflictRecLock(req.Transaction, req.Page, req.RecordIndex, req.Flags))
             {
                 req.Flags |= LockFlags.Waiting;
                 return CreateRecLockForWait(ref req, out entry);
@@ -320,7 +320,7 @@ namespace Vicuna.Engine.Locking
         /// <returns></returns>
         private bool IsHeldRecLock(ref LockRequest req, out LockEntry entry)
         {
-            var locks = RecLocks.GetValueOrDefault(req.Position);
+            var locks = RecLocks.GetValueOrDefault(req.Page);
             if (locks == null)
             {
                 entry = null;
@@ -331,7 +331,7 @@ namespace Vicuna.Engine.Locking
             {
                 var lockEntry = node.Value;
                 if (lockEntry.Transaction != req.Transaction ||
-                    lockEntry.GetBit(req.RecordSlot) == 0)
+                    lockEntry.GetBit(req.RecordIndex) == 0)
                 {
                     continue;
                 }
@@ -458,14 +458,14 @@ namespace Vicuna.Engine.Locking
         /// <returns></returns>
         private LockEntry CreateRecLock(ref LockRequest req)
         {
-            if (!RecLocks.TryGetValue(req.Position, out var list))
+            if (!RecLocks.TryGetValue(req.Page, out var list))
             {
                 list = new LinkedList<LockEntry>();
-                RecLocks[req.Position] = list; ;
+                RecLocks[req.Page] = list; ;
             }
 
             var tx = req.Transaction;
-            var entry = new LockEntry(req.Position, req.Flags, req.RecordCount);
+            var entry = new LockEntry(req.Page, req.Flags, req.RecordCount);
             if (entry.IsWaiting)
             {
                 tx.WaitLock = entry;
@@ -479,7 +479,7 @@ namespace Vicuna.Engine.Locking
             entry.Index = req.Index;
             entry.Transaction = req.Transaction;
             entry.Thread = Thread.CurrentThread.ManagedThreadId;
-            entry.SetBit(req.RecordSlot, 1);
+            entry.SetBit(req.RecordIndex, 1);
 
             return entry;
         }
@@ -498,7 +498,7 @@ namespace Vicuna.Engine.Locking
             }
 
             var tx = req.Transaction;
-            var entry = new LockEntry(req.Position, req.Flags, req.RecordCount);
+            var entry = new LockEntry(req.Page, req.Flags, req.RecordCount);
             if (entry.IsWaiting)
             {
                 tx.WaitLock = entry;
@@ -524,7 +524,7 @@ namespace Vicuna.Engine.Locking
         private LockEntry GetCanReuseRecLock(ref LockRequest req)
         {
             var entry = default(LockEntry);
-            var locks = RecLocks.GetValueOrDefault(req.Position);
+            var locks = RecLocks.GetValueOrDefault(req.Page);
             if (locks == null)
             {
                 return null;
@@ -543,7 +543,7 @@ namespace Vicuna.Engine.Locking
 
             if (entry != null)
             {
-                entry.SetBit(req.RecordSlot, 1);
+                entry.SetBit(req.RecordIndex, 1);
             }
 
             return entry;
@@ -571,7 +571,7 @@ namespace Vicuna.Engine.Locking
             if (IsCausedDeadLock(recEntry))
             {
                 entry.Flags &= ~LockFlags.Waiting;
-                entry.SetBit(req.RecordSlot, 0);
+                entry.SetBit(req.RecordIndex, 0);
                 entry.Transaction.WaitLock = null;
                 return DBOperationFlags.Dead;
             }

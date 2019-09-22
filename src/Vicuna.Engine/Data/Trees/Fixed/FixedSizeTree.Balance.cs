@@ -84,13 +84,12 @@ namespace Vicuna.Engine.Data.Trees.Fixed
                  rootHeader.DataElementSize
              );
 
-            root.CopyEntriesTo(ctx.Current, 0);
+            root.CopyEntriesTo(lltx, 0, ctx.Current);
 
             rootHeader.Depth--;
             rootHeader.NodeFlags = TreeNodeFlags.Branch | TreeNodeFlags.Root;
             rootHeader.DataElementSize = sizeof(long);
 
-            lltx.WriteFixedBTreeCopyEntries(root.Position, ctx.Current.Position, 0);
             lltx.WriteFixedBTreeRootSplitted(root.Position);
 
             SplitPage(lltx, ref ctx);
@@ -105,8 +104,7 @@ namespace Vicuna.Engine.Data.Trees.Fixed
             ref var siblingHeader = ref sibling.FixedHeader;
             ref var currentHeader = ref current.FixedHeader;
 
-            current.CopyEntriesTo(sibling, ctx.Index);
-            lltx.WriteFixedBTreeCopyEntries(current.Position, sibling.Position, ctx.Index);
+            current.CopyEntriesTo(lltx, ctx.Index, sibling);
 
             if (ctx.Current.IsLeaf)
             {
@@ -131,7 +129,7 @@ namespace Vicuna.Engine.Data.Trees.Fixed
             var key = current.IsLeaf ? sibling.FirstKey : current.GetNodeEntry(currentHeader.Count - 1).Key;
             if (ctx.Parent == null)
             {
-                ctx.Parent =  GetPageForUpdate(lltx, key, (byte)(siblingHeader.Depth - 1));
+                ctx.Parent = GetPageForUpdate(lltx, key, (byte)(siblingHeader.Depth - 1));
             }
 
             AddBranchEntry(lltx, ctx.Parent, ctx.Leaf, currentHeader.PageNumber, siblingHeader.PageNumber, key);

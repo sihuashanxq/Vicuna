@@ -8,13 +8,13 @@ namespace Vicuna.Engine.Locking
     {
         public Index Index;
 
-        public int RecordSlot;
+        public int RecordIndex;
 
         public int RecordCount;
 
         public LockFlags Flags;
 
-        public PagePosition Position;
+        public PagePosition Page;
 
         public Transaction Transaction;
     }
