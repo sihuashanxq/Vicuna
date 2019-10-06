@@ -1,5 +1,4 @@
 ﻿using System;
-using System.Collections.Generic;
 using System.Runtime.CompilerServices;
 using Vicuna.Engine.Paging;
 using Vicuna.Engine.Transactions;
@@ -12,9 +11,9 @@ namespace Vicuna.Engine.Data.Trees
 
         public int LastMatchIndex;
 
-        public TreeNodeQueryMode Mode;
+        public TreeNodeEnumMode Mode;
 
-        public TreePage(byte[] buffer, TreeNodeQueryMode mode) : base(buffer)
+        public TreePage(byte[] buffer, TreeNodeEnumMode mode) : base(buffer)
         {
             Mode = mode;
             LastMatch = 0;
@@ -61,7 +60,7 @@ namespace Vicuna.Engine.Data.Trees
             var count = IsLeaf ? TreeHeader.Count : TreeHeader.Count - 1;
             if (count <= 0)
             {
-                LastMatch = 0;
+                LastMatch = -1;
                 LastMatchIndex = 0;
                 return this;
             }
@@ -227,8 +226,8 @@ namespace Vicuna.Engine.Data.Trees
         [MethodImpl(MethodImplOptions.AggressiveInlining)]
         public bool Alloc(LowLevelTransaction lltx, int index, ref TreeNodeEntryAllocContext ctx, out TreeNodeEntry entry)
         {
-            ctx.Size += TreeNodeHeader.SizeOf;                                                                     //+ header-size
-            ctx.Size += ctx.Flags.HasVersion() ? TreeNodeVersionHeader.SizeOf : (ushort)0;       //+ trans-header-size
+            ctx.Size += TreeNodeHeader.SizeOf;                                                       //+ header-size
+            ctx.Size += ctx.NodeFlags.HasVersion() ? TreeNodeVersionHeader.SizeOf : (ushort)0;       //+ trans-header-size
             return AllocInternal(lltx, index, ref ctx, out entry);
         }
 
@@ -236,7 +235,7 @@ namespace Vicuna.Engine.Data.Trees
         internal bool AllocInternal(LowLevelTransaction lltx, int index, ref TreeNodeEntryAllocContext ctx, out TreeNodeEntry entry)
         {
             ref var header = ref TreeHeader;
-            if (Constants.PageSize - header.UsedSize < ctx.Size + sizeof(ushort))
+            if (header.FreeSize < ctx.Size + sizeof(ushort))
             {
                 entry = TreeNodeEntry.Empty;
                 return false;
@@ -275,7 +274,7 @@ namespace Vicuna.Engine.Data.Trees
         internal bool AllocInternal(LowLevelTransaction lltx, int index, ushort size, out Span<byte> entry)
         {
             ref var header = ref TreeHeader;
-            if (Constants.PageSize - header.UsedSize < size + sizeof(ushort))
+            if (header.FreeSize < size + sizeof(ushort))
             {
                 entry = Span<byte>.Empty;
                 return false;
@@ -306,6 +305,7 @@ namespace Vicuna.Engine.Data.Trees
             header.Count++;
 
             entry = ReadAt(upper, size);
+
             return true;
         }
 
@@ -318,7 +318,7 @@ namespace Vicuna.Engine.Data.Trees
         [MethodImpl(MethodImplOptions.AggressiveInlining)]
         public ref TreeNodeHeader GetNodeHeader(int index)
         {
-            var ptr = GetNodePointer(LastMatchIndex);
+            var ptr = GetNodePointer(index);
             if (ptr > Constants.PageSize - Constants.PageFooterSize || ptr < Constants.PageHeaderSize)
             {
                 throw new PageDamageException(this);
@@ -430,10 +430,10 @@ namespace Vicuna.Engine.Data.Trees
                 throw new ArgumentOutOfRangeException(nameof(index));
             }
 
-            var ptr = GetNodePointer(index);
             var pos = 0;
-
+            var ptr = GetNodePointer(index);
             ref var node = ref GetNodeHeader(ptr);
+
             switch (node.NodeFlags)
             {
                 case TreeNodeHeaderFlags.Primary:
@@ -515,6 +515,7 @@ namespace Vicuna.Engine.Data.Trees
             fromHeader.UsedSize = Constants.PageHeaderSize + Constants.PageFooterSize;
             fromHeader.Low = Constants.PageHeaderSize;
             fromHeader.Upper = Constants.PageSize - Constants.PageFooterSize;
+
             Data.AsSpan()
                 .Slice(Constants.PageHeaderSize, Constants.PageSize - Constants.PageFooterSize - Constants.PageHeaderSize)
                 .Clear();
@@ -522,12 +523,12 @@ namespace Vicuna.Engine.Data.Trees
 
         public int CopyEntriesTo(LowLevelTransaction lltx, int startIndex, TreePage newPage)
         {
-            var min = 1;
             ref var header = ref TreeHeader;
             var count = header.Count;
-            var start = startIndex < min ? min : startIndex;
+            var min = IsBranch ? 2 : 1;
+            var index = 0;
 
-            for (var i = count - 1; i >= startIndex; i--)
+            for (var i = count - 1; i >= min; i--)
             {
                 if (CopyEntryTo(lltx, i, 0, newPage, true, out var size))
                 {
@@ -537,24 +538,24 @@ namespace Vicuna.Engine.Data.Trees
                     continue;
                 }
 
-                start = i + 1;
+                index = i + 1;
                 break;
             }
 
-            if (start == startIndex)
+            if (index == startIndex)
             {
-                while (start - 1 > min && CopyEntryTo(lltx, start - 1, 0, newPage, false, out var size))
+                while (index - 1 > min && CopyEntryTo(lltx, index - 1, 0, newPage, false, out var size))
                 {
                     header.Low -= sizeof(ushort);
                     header.UsedSize -= size;
                     header.Count--;
-                    start--;
+                    index--;
                 }
             }
 
-            lltx.WriteBTreeCopyEntries(Position, newPage.Position, start);
+            lltx.WriteBTreeCopyEntries(Position, newPage.Position, index);
 
-            return start;
+            return index;
         }
 
         private bool CopyEntryTo(LowLevelTransaction lltx, int fromIndex, int toIndex, TreePage newPage, bool letCurrentMoreSpace, out ushort nodeSize)
@@ -639,7 +640,7 @@ namespace Vicuna.Engine.Data.Trees
         }
 
         [MethodImpl(MethodImplOptions.AggressiveInlining)]
-        private static int CompareKey(Span<byte> giveKey, Span<byte> nodeKey)
+        internal static int CompareKey(Span<byte> giveKey, Span<byte> nodeKey)
         {
             return BytesEncodingComparer.Compare(giveKey, nodeKey, StringCompareMode.IgnoreCase);
         }
@@ -648,8 +649,8 @@ namespace Vicuna.Engine.Data.Trees
         private TreeNodeEntry CreateNodeEntry(ref TreeNodeEntryAllocContext ctx, int index, int upper)
         {
             var buffer = ReadAt(upper, ctx.Size);
-            var hasValue = ctx.Flags.HasValue();
-            var hasVersion = ctx.Flags.HasVersion();
+            var hasValue = ctx.NodeFlags.HasValue();
+            var hasVersion = ctx.NodeFlags.HasVersion();
             var entry = new TreeNodeEntry()
             {
                 Key = buffer.Slice(TreeNodeHeader.SizeOf, ctx.KeySize),
@@ -702,14 +703,14 @@ namespace Vicuna.Engine.Data.Trees
 
             public ushort ValueSize;
 
-            public TreeNodeHeaderFlags Flags;
+            public TreeNodeHeaderFlags NodeFlags;
 
             public TreeNodeEntryAllocContext(ushort size, ushort keySize, ushort valueSize, TreeNodeHeaderFlags flags)
             {
                 Size = size;
                 KeySize = keySize;
                 ValueSize = valueSize;
-                Flags = flags;
+                NodeFlags = flags;
                 Key = Span<byte>.Empty;
             }
         }

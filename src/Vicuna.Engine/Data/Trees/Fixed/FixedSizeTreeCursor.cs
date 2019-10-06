@@ -27,7 +27,7 @@ namespace Vicuna.Engine.Data.Trees.Fixed
             }
 
             Index = 0;
-            Current = lltx.GetPage(fixedHeader.FileId, fixedHeader.NextPageNumber).AsFixed();
+            Current = lltx.EnterRead(fixedHeader.FileId, fixedHeader.NextPageNumber).AsFixed();
 
             return MoveNext(lltx, out entry);
         }

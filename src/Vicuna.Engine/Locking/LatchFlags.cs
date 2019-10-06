@@ -4,6 +4,10 @@
     {
         Read = 0,
 
-        Write = 1
+        Write = 1,
+
+        RWRead = 2,
+
+        RWWrite = 3
     }
 }

@@ -11,14 +11,40 @@ namespace Vicuna.Engine.Locking
 
         private int _release = UnReleased;
 
-        public LatchFlags Flags { get; }
-
         public LatchEntry Latch { get; }
+
+        public LatchFlags Flags { get; private set; }
 
         public LatchScope(LatchEntry latch, LatchFlags flags)
         {
             Flags = flags;
             Latch = latch ?? throw new ArgumentNullException(nameof(latch));
+        }
+
+        /// <summary>
+        /// thread unsafe
+        /// </summary>
+        public bool UpgrateWrite()
+        {
+            if (_release == UnReleased)
+            {
+                switch (Flags)
+                {
+                    case LatchFlags.Read:
+                    case LatchFlags.Write:
+                        throw new InvalidOperationException();
+                    case LatchFlags.RWRead:
+                        if (Latch._internalLock.TryEnterWriteLock(0))
+                        {
+                            Flags = LatchFlags.RWWrite;
+                            return true;
+                        }
+
+                        return false;
+                }
+            }
+
+            return false;
         }
 
         public void Dispose()
@@ -33,8 +59,15 @@ namespace Vicuna.Engine.Locking
                     case LatchFlags.Write:
                         Latch.ExitWriteScope();
                         break;
+                    case LatchFlags.RWRead:
+                        Latch.ExitReadWriteScope();
+                        break;
+                    case LatchFlags.RWWrite:
+                        Latch.ExitWriteScope();
+                        Latch.ExitReadWriteScope();
+                        break;
                 }
-            } 
+            }
         }
     }
 }

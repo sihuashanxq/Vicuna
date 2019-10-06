@@ -1,4 +1,5 @@
-﻿using System;
+using System;
+using System.Collections.Generic;
 using System.Runtime.CompilerServices;
 using Vicuna.Engine.Paging;
 using Vicuna.Engine.Transactions;
@@ -7,7 +8,7 @@ namespace Vicuna.Engine.Data.Trees
 {
     public partial class Tree
     {
-        protected SplitContext SplitPage(LowLevelTransaction lltx, TreePage current, Span<byte> key, int index)
+        protected SplitContext SplitPage(LowLevelTransaction lltx, TreePage current, Stack<TreePage> path, Span<byte> key, int index)
         {
             if (!current.IsLeaf)
             {
@@ -30,13 +31,13 @@ namespace Vicuna.Engine.Data.Trees
             }
             else
             {
-                SplitPage(lltx, ref ctx);
+                SplitPage(lltx, ref ctx, path);
             }
 
             return ctx;
         }
 
-        private SplitContext SplitBranch(LowLevelTransaction lltx, TreePage current, int index)
+        private SplitContext SplitBranch(LowLevelTransaction lltx, TreePage current, Stack<TreePage> path, int index)
         {
             if (!current.IsBranch)
             {
@@ -59,7 +60,7 @@ namespace Vicuna.Engine.Data.Trees
             }
             else
             {
-                SplitPage(lltx, ref ctx);
+                SplitPage(lltx, ref ctx, path);
             }
 
             return ctx;
@@ -80,10 +81,10 @@ namespace Vicuna.Engine.Data.Trees
 
             lltx.WriteFixedBTreeRootSplitted(root.Position);
 
-            SplitPage(lltx, ref ctx);
+            SplitPage(lltx, ref ctx, null);
         }
 
-        private void SplitPage(LowLevelTransaction lltx, ref SplitContext ctx)
+        private void SplitPage(LowLevelTransaction lltx, ref SplitContext ctx, Stack<TreePage> path)
         {
             var current = ctx.Current;
             var sibling = ctx.Sibling;
@@ -100,8 +101,8 @@ namespace Vicuna.Engine.Data.Trees
                 siblingHeader.PrevPageNumber = currentHeader.PageNumber;
                 currentHeader.NextPageNumber = siblingHeader.PageNumber;
 
-                //lltx.WriteByte8(current.Position, FixedSizeTreeHeader.Offset("NextPageNumber"), siblingHeader.PageNumber);
-                //lltx.WriteByte8(sibling.Position, FixedSizeTreeHeader.Offset("PrevPageNumber"), currentHeader.PageNumber);
+                lltx.WriteByte8(current.Position, TreeHelper.ByteOffset(ref currentHeader, ref currentHeader.NextPageNumber), currentHeader.NextPageNumber);
+                lltx.WriteByte8(sibling.Position, TreeHelper.ByteOffset(ref siblingHeader, ref siblingHeader.PrevPageNumber), siblingHeader.PrevPageNumber);
 
                 if (oldSibling != null)
                 {
@@ -110,8 +111,8 @@ namespace Vicuna.Engine.Data.Trees
                     siblingHeader.NextPageNumber = oldSiblingHeader.PageNumber;
                     oldSiblingHeader.PrevPageNumber = siblingHeader.PageNumber;
 
-                    //lltx.WriteByte8(sibling.Position, FixedSizeTreeHeader.Offset("NextPageNumber"), siblingHeader.NextPageNumber);
-                    //lltx.WriteByte8(oldSibling.Position, FixedSizeTreeHeader.Offset("PrevPageNumber"), oldSiblingHeader.PrevPageNumber);
+                    lltx.WriteByte8(sibling.Position, TreeHelper.ByteOffset(ref siblingHeader, ref siblingHeader.NextPageNumber), siblingHeader.NextPageNumber);
+                    lltx.WriteByte8(oldSibling.Position, TreeHelper.ByteOffset(ref oldSiblingHeader, ref oldSiblingHeader.NextPageNumber), oldSiblingHeader.PrevPageNumber);
                 }
 
                 key = sibling.FirstKey;
@@ -123,10 +124,10 @@ namespace Vicuna.Engine.Data.Trees
 
             if (ctx.Parent == null)
             {
-                ctx.Parent = GetPageForUpdate(lltx, key, (byte)(siblingHeader.Depth - 1));
+                ctx.Parent = path.Pop();
             }
 
-            AddBranchEntry(lltx, ctx.Parent, currentHeader.PageNumber, siblingHeader.PageNumber, key);
+            AddSplitedBranchEntry(lltx, ctx.Parent, currentHeader.PageNumber, siblingHeader.PageNumber, key, path);
         }
 
         private TreePage ModifyPage(LowLevelTransaction lltx, int fileId, long pageNumber)
@@ -136,7 +137,7 @@ namespace Vicuna.Engine.Data.Trees
                 return null;
             }
 
-            return lltx.ModifyPage(fileId, pageNumber).AsTree();
+            return lltx.EnterWrite(fileId, pageNumber).AsTree();
         }
 
         private TreePage AllocatePage(LowLevelTransaction lltx, byte depth, int fileId, TreeNodeFlags flags)
@@ -158,7 +159,7 @@ namespace Vicuna.Engine.Data.Trees
 
             Unsafe.InitBlock(ref page.Data[0], 0, Constants.PageHeaderSize);
 
-            treeHeader.UsedSize = Constants.PageHeaderSize;
+            treeHeader.UsedSize = Constants.PageHeaderSize + Constants.PageFooterSize;
             treeHeader.Low = Constants.PageHeaderSize;
             treeHeader.Upper = Constants.PageSize - Constants.PageFooterSize;
             treeHeader.Count = 0;

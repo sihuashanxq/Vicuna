@@ -6,7 +6,7 @@ namespace Vicuna.Engine.Locking
 {
     public struct LockRequest
     {
-        public Index Index;
+        public TableIndex Index;
 
         public int RecordIndex;
 

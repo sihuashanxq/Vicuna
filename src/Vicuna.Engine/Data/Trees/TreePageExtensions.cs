@@ -4,7 +4,7 @@ namespace Vicuna.Engine.Data.Trees
 {
     public static class TreePageExtensions
     {
-        public static TreePage AsTree(this Page page, TreeNodeQueryMode mode = TreeNodeQueryMode.Lte)
+        public static TreePage AsTree(this Page page, TreeNodeEnumMode mode = TreeNodeEnumMode.Lte)
         {
             if (page == null)
             {

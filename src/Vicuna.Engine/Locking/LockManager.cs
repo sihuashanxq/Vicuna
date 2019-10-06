@@ -12,13 +12,13 @@ namespace Vicuna.Engine.Locking
     {
         public object SyncRoot { get; } = new object();
 
-        public Dictionary<Index, LinkedList<LockEntry>> TabLocks { get; }
+        public Dictionary<TableIndex, LinkedList<LockEntry>> TabLocks { get; }
 
         public Dictionary<PagePosition, LinkedList<LockEntry>> RecLocks { get; set; }
 
         public LockManager()
         {
-            TabLocks = new Dictionary<Index, LinkedList<LockEntry>>();
+            TabLocks = new Dictionary<TableIndex, LinkedList<LockEntry>>();
             RecLocks = new Dictionary<PagePosition, LinkedList<LockEntry>>();
         }
 
@@ -421,7 +421,7 @@ namespace Vicuna.Engine.Locking
         /// </summary>
         /// <param name="req"></param>
         /// <returns></returns>
-        private bool IsOthersHeldOrWaitConflictTabLock(Transaction tx, Index index, LockFlags flags, LockEntry endEntry = null)
+        private bool IsOthersHeldOrWaitConflictTabLock(Transaction tx, TableIndex index, LockFlags flags, LockEntry endEntry = null)
         {
             var locks = TabLocks.GetValueOrDefault(index);
             if (locks == null)
@@ -737,7 +737,7 @@ namespace Vicuna.Engine.Locking
         }
 
         [MethodImpl(MethodImplOptions.AggressiveInlining)]
-        internal LockEntry FindFirstTabLockEntry(Index index)
+        internal LockEntry FindFirstTabLockEntry(TableIndex index)
         {
             return TabLocks.TryGetValue(index, out var list) ? list.First.Value : null;
         }

@@ -2,7 +2,7 @@
 
 namespace Vicuna.Engine.Data.Tables
 {
-    public class Index
+    public class TableIndex
     {
         public Tree Tree { get; }
 

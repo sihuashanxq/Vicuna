@@ -7,7 +7,7 @@ namespace Vicuna.Engine.Locking
     {
         private readonly object _target;
 
-        private readonly ReaderWriterLockSlim _internalLock;
+        internal readonly ReaderWriterLockSlim _internalLock;
 
         public LatchEntry(object target, LockRecursionPolicy policy = LockRecursionPolicy.NoRecursion)
         {
@@ -63,6 +63,11 @@ namespace Vicuna.Engine.Locking
             _internalLock.ExitWriteLock();
         }
 
+        public void ExitReadWriteScope()
+        {
+            _internalLock.ExitUpgradeableReadLock();
+        }
+
         public LatchScope EnterReadScope()
         {
             _internalLock.EnterReadLock();
@@ -73,6 +78,12 @@ namespace Vicuna.Engine.Locking
         {
             _internalLock.EnterWriteLock();
             return new LatchScope(this, LatchFlags.Write);
+        }
+
+        public LatchScope EnterReadWriteScope()
+        {
+            _internalLock.EnterUpgradeableReadLock();
+            return new LatchScope(this, LatchFlags.RWRead);
         }
     }
 }

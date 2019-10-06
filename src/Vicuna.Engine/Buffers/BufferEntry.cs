@@ -1,5 +1,6 @@
 ﻿using Vicuna.Engine.Paging;
 using Vicuna.Engine.Locking;
+using System.Threading;
 
 namespace Vicuna.Engine.Buffers
 {
@@ -32,7 +33,7 @@ namespace Vicuna.Engine.Buffers
         public BufferEntry(BufferState state, PagePosition pos)
         {
             State = state;
-            Latch = new LatchEntry(this);
+            Latch = new LatchEntry(this, LockRecursionPolicy.SupportsRecursion);
             Position = pos;
         }
 

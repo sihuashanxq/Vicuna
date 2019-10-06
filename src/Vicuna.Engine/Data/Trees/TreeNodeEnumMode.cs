@@ -1,9 +1,6 @@
 ﻿namespace Vicuna.Engine.Data.Trees
 {
-    /// <summary>
-    /// a mode to control the tree-page's query behavior
-    /// </summary>
-    public enum TreeNodeQueryMode
+    public enum TreeNodeEnumMode
     {
         /// <summary>
         /// >

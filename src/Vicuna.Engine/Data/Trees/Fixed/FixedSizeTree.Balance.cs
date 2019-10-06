@@ -1,5 +1,6 @@
 ﻿using System;
 using System.Runtime.CompilerServices;
+using Vicuna.Engine.Locking;
 using Vicuna.Engine.Paging;
 using Vicuna.Engine.Transactions;
 
@@ -142,7 +143,7 @@ namespace Vicuna.Engine.Data.Trees.Fixed
                 return null;
             }
 
-            return lltx.ModifyPage(fileId, pageNumber).AsFixed();
+            return lltx.EnterLatch(fileId, pageNumber, LatchFlags.Write).AsFixed();
         }
 
         private FixedSizeTreePage CreatePage(LowLevelTransaction lltx, byte depth, int fileId, long pageNumber, TreeNodeFlags flags, byte dataSize)

@@ -15,7 +15,7 @@ namespace Vicuna.Engine.Locking
 
         public byte[] Bits;
 
-        public Index Index;
+        public Vicuna.Engine.Data.Tables.TableIndex Index;
 
         public LockFlags Flags;
 

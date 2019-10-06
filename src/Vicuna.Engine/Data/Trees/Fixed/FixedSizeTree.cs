@@ -43,7 +43,7 @@ namespace Vicuna.Engine.Data.Trees.Fixed
                         break;
                     }
 
-                    var page = lltx.HasBufferLatch(buffer, LatchFlags.Read) ? buffer.Page.AsFixed() : tx.GetPage(buffer).AsFixed();
+                    var page = lltx.CheckLatch(buffer, LatchFlags.Read) ? buffer.Page.AsFixed() : tx.EnterRead(buffer).AsFixed();
                     if (page.Depth == depth)
                     {
                         break;
@@ -64,7 +64,7 @@ namespace Vicuna.Engine.Data.Trees.Fixed
                 throw new NullReferenceException($"can't find a page for the key:{key.ToString()}");
             }
 
-            var fixedPage = lltx.GetPage(buffer).AsFixed();
+            var fixedPage = lltx.EnterRead(buffer).AsFixed();
             if (fixedPage == null)
             {
                 throw new NullReferenceException(nameof(fixedPage));
@@ -81,7 +81,7 @@ namespace Vicuna.Engine.Data.Trees.Fixed
                 throw new NullReferenceException($"can't find a page for the key:{key.ToString()}");
             }
 
-            var fixedPage = lltx.ModifyPage(buffer).AsFixed();
+            var fixedPage = lltx.EnterWrite(buffer).AsFixed();
             if (fixedPage == null)
             {
                 throw new NullReferenceException(nameof(fixedPage));

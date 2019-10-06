@@ -1,8 +1,8 @@
 ﻿using System;
 using System.Runtime.CompilerServices;
+
 using Vicuna.Engine.Buffers;
 using Vicuna.Engine.Data.Tables;
-using Vicuna.Engine.Data.Trees.Fixed;
 using Vicuna.Engine.Locking;
 using Vicuna.Engine.Paging;
 using Vicuna.Engine.Transactions;
@@ -31,7 +31,7 @@ namespace Vicuna.Engine.Data.Trees
 
     public partial class Tree
     {
-        private readonly Index _index;
+        private readonly TableIndex _index;
 
         private readonly TreeRootHeader _root;
 
@@ -39,19 +39,17 @@ namespace Vicuna.Engine.Data.Trees
 
         public TreeRootHeader Root => _root;
 
+        public const ushort MaxKeySize = 512;
+
+        public const ushort MaxBranchEntrySize = 768;
+
         public const ushort MaxEntrySizeInPage = (Constants.PageSize - Constants.PageHeaderSize - Constants.PageFooterSize) / 2 - TreeNodeHeader.SizeOf - TreeNodeVersionHeader.SizeOf;
 
-        public Tree(Index index, TreeRootHeader root, PageAllocator pageAllocator)
+        public Tree(TableIndex index, TreeRootHeader root, PageAllocator pageAllocator)
         {
             _root = root;
             _index = index;
             _pageAllocator = pageAllocator;
-        }
-
-        [MethodImpl(MethodImplOptions.AggressiveInlining)]
-        private bool IsLeaf(BufferEntry buffer)
-        {
-            return buffer.Page.Header.Cast<TreePageHeader>().NodeFlags.HasFlag(TreeNodeFlags.Leaf);
         }
 
         [MethodImpl(MethodImplOptions.AggressiveInlining)]
@@ -77,67 +75,38 @@ namespace Vicuna.Engine.Data.Trees
                 RecordCount = page.TreeHeader.Count,
             };
 
+            return DBOperationFlags.Ok;
             return EngineEnviorment.LockManager.Lock(ref req);
         }
 
-        private BufferEntry GetBufferForKey(LowLevelTransaction lltx, Span<byte> key, byte depth)
+        public bool TryGetEntry(LowLevelTransaction lltx, Span<byte> key, out long n)
         {
-            var buffer = lltx.Buffers.GetEntry(_root.FileId, _root.PageNumber);
-
-            using (var tx = lltx.StartNew())
-            {
-                while (true)
-                {
-                    if (IsLeaf(buffer))
-                    {
-                        break;
-                    }
-
-                    var page = lltx.HasBufferLatch(buffer, LatchFlags.Read) ? buffer.Page.AsTree() : tx.GetPage(buffer).AsTree();
-                    if (page.Depth == depth)
-                    {
-                        break;
-                    }
-
-                    buffer = tx.Buffers.GetEntry(page.FindPage(key));
-                }
-            }
-
-            return buffer;
-        }
-
-        private TreePage GetCursorForUpdate(LowLevelTransaction ttx, Span<byte> key, byte depth)
-        {
-            var buffer = GetBufferForKey(ttx, key, depth);
-            if (buffer == null)
-            {
-                throw new NullReferenceException($"can't find a page for the key:{key.ToString()}");
-            }
-
-            var page = ttx.ModifyPage(buffer);
+            var page = GetPageForQuery(lltx, key, Constants.BTreeLeafPageDepth);
             if (page == null)
             {
-                throw new NullReferenceException(nameof(page));
+                n = 0;
+                return false;
             }
 
-            return page.AsTree();
-        }
-
-        private TreePage GetCursorForQuery(LowLevelTransaction ttx, Span<byte> key, byte depth, TreeNodeQueryMode mode = TreeNodeQueryMode.Lte)
-        {
-            var buffer = GetBufferForKey(ttx, key, depth);
-            if (buffer == null)
+            if (page.IsBranch)
             {
-                throw new NullReferenceException($"can't find a page for the key:{key.ToString()}");
+                n = 0;
+                return false;
             }
 
-            var page = ttx.GetPage(buffer);
-            if (page == null)
+            if (true)
             {
-                throw new NullReferenceException(nameof(page));
+                page.Search(key);
             }
 
-            return page.AsTree(mode);
+            if (page.LastMatch != 0 || page.LastMatchIndex < 0)
+            {
+                n = int.MinValue;
+                return false;
+            }
+
+            n = BitConverter.ToInt32(page.GetNodeEntry(page.LastMatchIndex).Key.Slice(1));
+            return true;
         }
     }
 }

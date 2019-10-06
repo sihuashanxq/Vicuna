@@ -1,6 +1,7 @@
 ﻿using System;
 using System.Collections.Generic;
 using System.IO;
+using System.Runtime.CompilerServices;
 using Vicuna.Engine.Buffers;
 using Vicuna.Engine.Locking;
 using Vicuna.Engine.Paging;
@@ -23,131 +24,169 @@ namespace Vicuna.Engine.Transactions
 
         internal Transaction Transaction { get; }
 
-        internal Stack<LatchScope> Latches { get; }
+        internal HashSet<Page> Modifies { get; }
 
-        internal Dictionary<PagePosition, Page> Modifies { get; }
-
-        internal Dictionary<object, LatchScope> LatchMaps { get; }
+        internal Dictionary<object, LatchScope> LatchLocks { get; }
 
         public LowLevelTransaction(long id, BufferPool buffers)
         {
             Id = id;
             Buffers = buffers;
             Logger = new FastList<byte>();
-            Latches = new Stack<LatchScope>();
-            Modifies = new Dictionary<PagePosition, Page>();
-            LatchMaps = new Dictionary<object, LatchScope>();
+            Modifies = new HashSet<Page>();
+            LatchLocks = new Dictionary<object, LatchScope>();
         }
 
-        public Page GetPage(int fileId, long pageNumber)
+        #region Latch
+
+        [MethodImpl(MethodImplOptions.AggressiveInlining)]
+        public LatchScope RemoveLatch(BufferEntry buffer)
         {
-            return GetPage(new PagePosition(fileId, pageNumber));
+            if (LatchLocks.Remove(buffer.Position, out var latchLock))
+            {
+                return latchLock;
+            }
+
+            return null;
         }
 
-        public Page GetPage(PagePosition pos)
+        public void ExitLatch(PagePosition page)
         {
-            if (Modifies.TryGetValue(pos, out var cache))
+            if (LatchLocks.Remove(page, out var latchLock))
             {
-                return cache;
+                latchLock.Dispose();
+            }
+        }
+
+        public void ExitLatch(BufferEntry buffer)
+        {
+            ExitLatch(buffer.Position);
+        }
+
+        public void ExitLatch(int fileId, long pageNumber)
+        {
+            ExitLatch(new PagePosition(fileId, pageNumber));
+        }
+
+        public Page EnterRead(int fileId, long pageNumber)
+        {
+            return EnterLatch(fileId, pageNumber, LatchFlags.Read);
+        }
+
+        public Page EnterRead(PagePosition page)
+        {
+            return EnterLatch(page, LatchFlags.Read);
+        }
+
+        public Page EnterRead(BufferEntry buffer)
+        {
+            return EnterLatch(buffer, LatchFlags.Read);
+        }
+
+        public Page EnterWrite(int fileId, long pageNumber)
+        {
+            return EnterLatch(fileId, pageNumber, LatchFlags.Write);
+        }
+
+        public Page EnterWrite(PagePosition page)
+        {
+            return EnterLatch(page, LatchFlags.Write);
+        }
+
+        public Page EnterWrite(BufferEntry buffer)
+        {
+            return EnterLatch(buffer, LatchFlags.Write);
+        }
+
+        public Page EnterLatch(int fileId, long pageNumber, LatchFlags flags)
+        {
+            return EnterLatch(new PagePosition(fileId, pageNumber), flags);
+        }
+
+        public Page EnterLatch(PagePosition page, LatchFlags flags)
+        {
+            if (LatchLocks.TryGetValue(page, out var latchLock))
+            {
+                if (flags != latchLock.Flags)
+                {
+                    throw new InvalidOperationException($"has hold a {flags} lactch of the buffer:{page}!");
+                }
+
+                return (latchLock.Latch.Target as BufferEntry)?.Page;
             }
 
-            if (LatchMaps.TryGetValue(pos, out var entry))
-            {
-                return ((BufferEntry)entry?.Latch?.Target)?.Page;
-            }
-
-            var buffer = Buffers.GetEntry(pos);
+            var buffer = Buffers.GetEntry(page);
             if (buffer == null)
             {
-                return null;
+                throw new NullReferenceException(nameof(buffer));
             }
 
-            return GetPage(buffer);
-        }
-
-        public Page GetPage(BufferEntry buffer)
-        {
-            if (Modifies.TryGetValue(buffer.Page.Position, out var cache))
+            switch (flags)
             {
-                return cache;
-            }
-
-            if (!LatchMaps.ContainsKey(buffer.Page.Position))
-            {
-                AddLatchScope(buffer.Latch.EnterReadScope());
+                case LatchFlags.Read:
+                    LatchLocks[page] = buffer.Latch.EnterReadScope();
+                    break;
+                case LatchFlags.Write:
+                    LatchLocks[page] = buffer.Latch.EnterWriteScope();
+                    break;
+                case LatchFlags.RWRead:
+                    LatchLocks[page] = buffer.Latch.EnterReadWriteScope();
+                    break;
             }
 
             return buffer.Page;
         }
 
-        public bool HasBufferLatch(BufferEntry buffer, LatchFlags flags)
+        [MethodImpl(MethodImplOptions.AggressiveInlining)]
+        public Page EnterLatch(BufferEntry buffer, LatchFlags flags)
         {
-            if (!LatchMaps.TryGetValue(buffer.Page.Position, out var latch))
+            if (LatchLocks.TryGetValue(buffer.Position, out var latchLock))
+            {
+                if (flags != latchLock.Flags)
+                {
+                    throw new InvalidOperationException($"has hold a {flags} lactch of the buffer:{buffer.Position}!");
+                }
+
+                return buffer.Page;
+            }
+
+            switch (flags)
+            {
+                case LatchFlags.Read:
+                    LatchLocks[buffer.Position] = buffer.Latch.EnterReadScope();
+                    break;
+                case LatchFlags.RWRead:
+                    LatchLocks[buffer.Position] = buffer.Latch.EnterReadWriteScope();
+                    break;
+                case LatchFlags.Write:
+                    LatchLocks[buffer.Position] = buffer.Latch.EnterWriteScope();
+                    break;
+            }
+
+            return buffer.Page;
+        }
+
+        public bool CheckLatch(BufferEntry buffer, LatchFlags flags)
+        {
+            if (!LatchLocks.TryGetValue(buffer.Position, out var latch))
             {
                 return false;
             }
 
             switch (flags)
             {
-                case LatchFlags.Read:
-                    return latch.Flags == LatchFlags.Read || latch.Flags == LatchFlags.Write;
                 case LatchFlags.Write:
-                    return latch.Flags == LatchFlags.Write;
+                    return latch.Flags == LatchFlags.Write || latch.Flags == LatchFlags.RWWrite;
                 default:
                     return true;
             }
         }
 
-        public Page ModifyPage(int fileId, long pageNumber)
-        {
-            return ModifyPage(new PagePosition(fileId, pageNumber));
-        }
-
-        public Page ModifyPage(PagePosition pos)
-        {
-            if (!Modifies.TryGetValue(pos, out var entry))
-            {
-                var buffer = Buffers.GetEntry(pos);
-                if (buffer == null)
-                {
-                    return null;
-                }
-
-                AddLatchScope(buffer.Latch.EnterWriteScope());
-                Modifies[buffer.Position] = buffer.Page;
-
-                return buffer.Page;
-            }
-
-            return entry;
-        }
-
-        public Page ModifyPage(BufferEntry buffer)
-        {
-            if (buffer == null)
-            {
-                throw new ArgumentNullException(nameof(buffer));
-            }
-
-            if (!Modifies.TryGetValue(buffer.Page.Position, out var entry))
-            {
-                AddLatchScope(buffer.Latch.EnterWriteScope());
-                Modifies[buffer.Position] = buffer.Page;
-
-                return buffer.Page;
-            }
-
-            return entry;
-        }
-
-        public void FreePage(Page page)
-        {
-
-        }
+        #endregion
 
         public PagePosition AllocatePage(int fileId)
         {
-            return new PagePosition(fileId, ++count);
+            return new PagePosition(fileId, System.Threading.Interlocked.Increment(ref count));
         }
 
         private static int count = 1;
@@ -162,29 +201,10 @@ namespace Vicuna.Engine.Transactions
             return new LowLevelTransaction(Id, Buffers);
         }
 
-        protected void AddLatchScope(LatchScope scope)
-        {
-            if (LatchMaps.TryGetValue(scope.Latch.Target, out var old))
-            {
-                if (old.Flags != scope.Flags)
-                {
-                    throw new InvalidOperationException($"latch at target:{old.Latch.Target} has already exists!");
-                }
-
-                return;
-            }
-
-            Latches.Push(scope);
-            LatchMaps.Add(scope.Latch.Target, scope);
-        }
-
         public void Commit()
         {
             ReleaseResources();
-
-            Modifies.Clear();
-            Latches.Clear();
-            LatchMaps.Clear();
+            LatchLocks.Clear();
         }
 
         public void Dispose()
@@ -196,9 +216,9 @@ namespace Vicuna.Engine.Transactions
         {
             lock (Buffers.SyncRoot)
             {
-                while (Latches.Count != 0)
+                foreach (var item in LatchLocks)
                 {
-                    var latch = Latches.Pop();
+                    var latch = item.Value;
                     if (latch.Latch.Target is BufferEntry entry)
                     {
                         entry.Count--;

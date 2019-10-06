@@ -5,9 +5,9 @@ namespace Vicuna.Engine.Data.Tables
 {
     public class Table
     {
-        public Index Cluster { get; }
+        public TableIndex Cluster { get; }
 
-        public Dictionary<string, Index> Indexes { get; }
+        public Dictionary<string, TableIndex> Indexes { get; }
 
         public PagePosition TableLockPosition => new PagePosition(Cluster.Tree.Root.FileId, -1);
     }

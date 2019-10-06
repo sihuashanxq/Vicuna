@@ -8,6 +8,8 @@
 
         Wait,
 
-        Dead
+        Dead,
+
+        Split
     }
 }

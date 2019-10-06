@@ -1,11 +1,12 @@
 ﻿using System.Runtime.InteropServices;
+using System.Runtime.CompilerServices;
 
 namespace Vicuna.Engine.Data.Trees
 {
     [StructLayout(LayoutKind.Explicit, Pack = 1, Size = SizeOf)]
     public unsafe struct TreePageHeader
     {
-        internal const int SizeOf = 96;
+        internal const int SizeOf = Constants.PageHeaderSize;
 
         [FieldOffset(0)]
         public PageHeaderFlags Flags;
@@ -48,5 +49,25 @@ namespace Vicuna.Engine.Data.Trees
 
         [FieldOffset(55)]
         public fixed byte Reserved[SizeOf - 55];
+
+        public bool IsLeaf
+        {
+            [MethodImpl(MethodImplOptions.AggressiveInlining)]
+            get => NodeFlags.HasFlag(TreeNodeFlags.Leaf);
+        }
+
+        public bool IsRoot
+        {
+            [MethodImpl(MethodImplOptions.AggressiveInlining)]
+            get => NodeFlags.HasFlag(TreeNodeFlags.Root);
+        }
+
+        public bool IsBranch => !IsLeaf;
+
+        public ushort FreeSize
+        {
+            [MethodImpl(MethodImplOptions.AggressiveInlining)]
+            get => (ushort)(Constants.PageSize - UsedSize);
+        }
     }
 }
