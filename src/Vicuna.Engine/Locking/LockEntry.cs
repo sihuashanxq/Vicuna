@@ -15,7 +15,7 @@ namespace Vicuna.Engine.Locking
 
         public byte[] Bits;
 
-        public Vicuna.Engine.Data.Tables.TableIndex Index;
+        public TableIndex Index;
 
         public LockFlags Flags;
 
@@ -106,6 +106,11 @@ namespace Vicuna.Engine.Locking
         [MethodImpl(MethodImplOptions.AggressiveInlining)]
         public void MoveBits(int index)
         {
+            if (index >= Count)
+            {
+                return;
+            }
+
             const byte Bit8Mask = 0x80;
 
             var mid = index >> 3;

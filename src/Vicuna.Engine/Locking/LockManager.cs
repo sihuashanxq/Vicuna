@@ -2,7 +2,6 @@
 using System.Runtime.CompilerServices;
 using System.Threading;
 using Vicuna.Engine.Data.Tables;
-using Vicuna.Engine.Data.Trees;
 using Vicuna.Engine.Paging;
 using Vicuna.Engine.Transactions;
 
@@ -27,28 +26,34 @@ namespace Vicuna.Engine.Locking
         /// </summary>
         /// <param name="req"></param>
         /// <returns></returns>
-        public DBOperationFlags Lock(ref LockRequest req)
+        public DBResult Lock(ref LockRequest req)
         {
-            return req.Flags.IsTable() ? LockTab(ref req, out var _) : LockRec(ref req, out var _);
+            lock (SyncRoot)
+            {
+                return req.Flags.IsTable() ? LockTab(ref req, out var _) : LockRec(ref req, out var _);
+            }
         }
 
         /// <summary>
         /// </summary>
         /// <param name="req"></param>
         /// <returns></returns>
-        public DBOperationFlags UnLock(LockEntry entry)
+        public DBResult UnLock(LockEntry entry)
         {
-            if (entry == null)
+            lock (SyncRoot)
             {
-                return DBOperationFlags.Ok;
+                if (entry == null)
+                {
+                    return DBResult.Success;
+                }
+
+                var list = entry.GNode.List;
+                var next = FindNextLockEntry(entry);
+
+                list.Remove(entry.GNode);
+
+                return entry.IsTable ? UnLockTab(entry, next) : UnLockRec(entry, next);
             }
-
-            var list = entry.GNode.List;
-            var next = FindNextLockEntry(entry);
-
-            list.Remove(entry.GNode);
-
-            return entry.IsTable ? UnLockTab(entry, next) : UnLockRec(entry, next);
         }
 
         /// <summary>
@@ -57,7 +62,7 @@ namespace Vicuna.Engine.Locking
         /// <param name="entry"></param>
         /// <param name="next"></param>
         /// <returns></returns>
-        internal DBOperationFlags UnLockRec(LockEntry entry, LockEntry next)
+        internal DBResult UnLockRec(LockEntry entry, LockEntry next)
         {
             while (next != null)
             {
@@ -88,7 +93,7 @@ namespace Vicuna.Engine.Locking
                 next = FindNextLockEntry(next);
             }
 
-            return DBOperationFlags.Ok;
+            return DBResult.Success;
         }
 
         /// <summary>
@@ -97,7 +102,7 @@ namespace Vicuna.Engine.Locking
         /// <param name="entry"></param>
         /// <param name="next"></param>
         /// <returns></returns>
-        internal DBOperationFlags UnLockTab(LockEntry entry, LockEntry next)
+        internal DBResult UnLockTab(LockEntry entry, LockEntry next)
         {
             while (next != null)
             {
@@ -121,7 +126,7 @@ namespace Vicuna.Engine.Locking
                 next = FindNextLockEntry(next);
             }
 
-            return DBOperationFlags.Ok;
+            return DBResult.Success;
         }
 
         /// <summary>
@@ -259,18 +264,18 @@ namespace Vicuna.Engine.Locking
         /// <param name="req"></param>
         /// <param name="entry"></param>
         /// <returns></returns>
-        public DBOperationFlags LockRec(ref LockRequest req, out LockEntry entry)
+        public DBResult LockRec(ref LockRequest req, out LockEntry entry)
         {
             var locks = RecLocks.GetValueOrDefault(req.Page);
             if (locks == null || locks.Count == 0)
             {
                 entry = CreateRecLock(ref req);
-                return DBOperationFlags.Ok;
+                return DBResult.Success;
             }
 
             if (IsHeldRecLock(ref req, out entry))
             {
-                return DBOperationFlags.Ok;
+                return DBResult.Success;
             }
 
             if (IsOthersHeldOrWaitConflictRecLock(req.Transaction, req.Page, req.RecordIndex, req.Flags))
@@ -280,7 +285,7 @@ namespace Vicuna.Engine.Locking
             }
 
             entry = GetCanReuseRecLock(ref req) ?? CreateRecLock(ref req);
-            return DBOperationFlags.Ok;
+            return DBResult.Success;
         }
 
         /// <summary>
@@ -289,18 +294,18 @@ namespace Vicuna.Engine.Locking
         /// <param name="req"></param>
         /// <param name="entry"></param>
         /// <returns></returns>
-        public DBOperationFlags LockTab(ref LockRequest req, out LockEntry entry)
+        public DBResult LockTab(ref LockRequest req, out LockEntry entry)
         {
             var locks = TabLocks.GetValueOrDefault(req.Index);
             if (locks == null || locks.Count == 0)
             {
                 entry = CreateTabLock(ref req);
-                return DBOperationFlags.Ok;
+                return DBResult.Success;
             }
 
             if (IsHeldTabLock(ref req, out entry))
             {
-                return DBOperationFlags.Ok;
+                return DBResult.Success;
             }
 
             if (IsOthersHeldOrWaitConflictTabLock(req.Transaction, req.Index, req.Flags))
@@ -310,7 +315,7 @@ namespace Vicuna.Engine.Locking
             }
 
             entry = CreateTabLock(ref req);
-            return DBOperationFlags.Ok;
+            return DBResult.Success;
         }
 
         /// <summary>
@@ -555,7 +560,7 @@ namespace Vicuna.Engine.Locking
         /// <param name="req"></param>
         /// <param name="entry"></param>
         /// <returns></returns>
-        private DBOperationFlags CreateRecLockForWait(ref LockRequest req, out LockEntry entry)
+        private DBResult CreateRecLockForWait(ref LockRequest req, out LockEntry entry)
         {
             var recEntry = CreateRecLock(ref req);
             if (!recEntry.IsWaiting)
@@ -573,11 +578,11 @@ namespace Vicuna.Engine.Locking
                 entry.Flags &= ~LockFlags.Waiting;
                 entry.SetBit(req.RecordIndex, 0);
                 entry.Transaction.WaitLock = null;
-                return DBOperationFlags.Dead;
+                return DBResult.DeadLock;
             }
 
             entry.Transaction.WaitEvent.Reset();
-            return DBOperationFlags.Wait;
+            return DBResult.WaitLock;
         }
 
         /// <summary>
@@ -586,7 +591,7 @@ namespace Vicuna.Engine.Locking
         /// <param name="req"></param>
         /// <param name="entry"></param>
         /// <returns></returns>
-        private DBOperationFlags CreateTabLockForWait(ref LockRequest req, out LockEntry entry)
+        private DBResult CreateTabLockForWait(ref LockRequest req, out LockEntry entry)
         {
             var tabEntry = CreateTabLock(ref req);
             if (!tabEntry.IsWaiting)
@@ -603,11 +608,11 @@ namespace Vicuna.Engine.Locking
             {
                 entry.Flags &= ~LockFlags.Waiting;
                 entry.Transaction.WaitLock = null;
-                return DBOperationFlags.Dead;
+                return DBResult.DeadLock;
             }
 
             entry.Transaction.WaitEvent.Reset();
-            return DBOperationFlags.Wait;
+            return DBResult.WaitLock;
         }
 
         /// <summary>
@@ -707,26 +712,41 @@ namespace Vicuna.Engine.Locking
         }
 
         [MethodImpl(MethodImplOptions.AggressiveInlining)]
-        internal void MoveRecLockBits(PagePosition pos, int index)
+        public void ExtendRecLockCap(PagePosition pos, int count, LockExtendDirection direction)
         {
-            var entry = FindFirstRecLockEntry(pos);
-
-            while (entry != null)
+            lock (SyncRoot)
             {
-                entry.MoveBits(index);
-                entry = FindNextLockEntry(entry);
+                var entry = FindFirstRecLockEntry(pos);
+
+                while (entry != null)
+                {
+                    entry.ExtendCapacity(count, direction);
+                    entry = FindNextLockEntry(entry);
+                }
             }
         }
 
         [MethodImpl(MethodImplOptions.AggressiveInlining)]
-        internal void ExtendRecLockCapacity(PagePosition pos, int count, LockExtendDirection direction)
+        public void ExtendRecLockCap(PagePosition pos, int index, int count)
         {
-            var entry = FindFirstRecLockEntry(pos);
-
-            while (entry != null)
+            lock (SyncRoot)
             {
-                entry.ExtendCapacity(count, direction);
-                entry = FindNextLockEntry(entry);
+                var entry = FindFirstRecLockEntry(pos);
+
+                while (entry != null)
+                {
+                    if (entry.Count < count + 1)
+                    {
+                        entry.ExtendCapacity(count - entry.Count + 8, LockExtendDirection.Tail);
+                    }
+
+                    if (index < count)
+                    {
+                        entry.MoveBits(index);
+                    }
+
+                    entry = FindNextLockEntry(entry);
+                }
             }
         }
 

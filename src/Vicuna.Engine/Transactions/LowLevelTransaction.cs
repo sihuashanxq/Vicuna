@@ -28,6 +28,8 @@ namespace Vicuna.Engine.Transactions
 
         internal Dictionary<object, LatchScope> LatchLocks { get; }
 
+        internal LockManager LockManager { get; }
+
         public LowLevelTransaction(long id, BufferPool buffers)
         {
             Id = id;
@@ -35,12 +37,14 @@ namespace Vicuna.Engine.Transactions
             Logger = new FastList<byte>();
             Modifies = new HashSet<Page>();
             LatchLocks = new Dictionary<object, LatchScope>();
+            Transaction = EngineEnviorment.Transactions[0];
+            LockManager = EngineEnviorment.LockManager;
         }
 
         #region Latch
 
         [MethodImpl(MethodImplOptions.AggressiveInlining)]
-        public LatchScope RemoveLatch(BufferEntry buffer)
+        public LatchScope PopLatch(BufferEntry buffer)
         {
             if (LatchLocks.Remove(buffer.Position, out var latchLock))
             {
@@ -48,6 +52,15 @@ namespace Vicuna.Engine.Transactions
             }
 
             return null;
+        }
+
+        [MethodImpl(MethodImplOptions.AggressiveInlining)]
+        public void PushLatch(PagePosition page, LatchScope scope)
+        {
+            if (!LatchLocks.TryAdd(page, scope))
+            {
+                throw new InvalidOperationException($"latch for {page} has already exists!");
+            }
         }
 
         public void ExitLatch(PagePosition page)

@@ -6,10 +6,10 @@ namespace Vicuna.Engine.Data.Trees
     public static class TreeHelper
     {
         [MethodImpl(MethodImplOptions.AggressiveInlining)]
-        public static ushort GetNodePageSize(KVTuple kv, TreeNodeHeaderFlags nodeFlags)
+        public static ushort GetNodeSizeInPage(KVTuple kv, TreeNodeHeaderFlags nodeFlags)
         {
             var size = kv.Length > Tree.MaxEntrySizeInPage ? kv.Key.Length : kv.Length;
-            size += TreeNodeHeader.SizeOf;
+            size += TreeNodeHeader.SizeOf + sizeof(short);
             size += nodeFlags.HasVersion() ? TreeNodeVersionHeader.SizeOf : 0;
             return (ushort)size;
         }

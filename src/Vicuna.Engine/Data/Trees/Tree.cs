@@ -1,6 +1,5 @@
 ﻿using System;
 using System.Runtime.CompilerServices;
-
 using Vicuna.Engine.Buffers;
 using Vicuna.Engine.Data.Tables;
 using Vicuna.Engine.Locking;
@@ -63,20 +62,26 @@ namespace Vicuna.Engine.Data.Trees
             return -1;
         }
 
-        protected DBOperationFlags LockRec(LowLevelTransaction lltx, TreePage page, LockFlags flags)
+        protected DBResult LockRec(LowLevelTransaction lltx, TreePage page, int index, LockFlags lockFlags, bool add = false)
         {
+            var count = page.TreeHeader.Count;
+
+            if (add)
+            {
+                lltx.LockManager.ExtendRecLockCap(page.Position, index, count);
+            }
+
             var req = new LockRequest()
             {
-                Flags = flags,
+                Flags = lockFlags,
                 Index = _index,
                 Page = page.Position,
                 Transaction = lltx.Transaction,
-                RecordIndex = page.LastMatchIndex,
-                RecordCount = page.TreeHeader.Count,
+                RecordIndex = index,
+                RecordCount = count,
             };
 
-            return DBOperationFlags.Ok;
-            return EngineEnviorment.LockManager.Lock(ref req);
+            return lltx.LockManager.Lock(ref req);
         }
 
         public bool TryGetEntry(LowLevelTransaction lltx, Span<byte> key, out long n)

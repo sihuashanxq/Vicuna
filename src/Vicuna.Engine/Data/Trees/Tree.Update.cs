@@ -7,10 +7,10 @@ namespace Vicuna.Engine.Data.Trees
 {
     public partial class Tree
     {
-        protected DBOperationFlags UpdateClusterEntry(LowLevelTransaction tx, TreePage page, KVTuple kv)
+        protected DBResult UpdateClusterEntry(LowLevelTransaction tx, TreePage page, KVTuple kv)
         {
-            var flags = LockRec(tx, page, LockFlags.Exclusive | LockFlags.Document);
-            if (flags != DBOperationFlags.Ok)
+            var flags = LockRec(tx, page, page.LastMatchIndex, LockFlags.Exclusive | LockFlags.Document);
+            if (flags != DBResult.Success)
             {
                 return flags;
             }
@@ -39,7 +39,7 @@ namespace Vicuna.Engine.Data.Trees
             return UpdateClusterEntry(tx, page, kv, ref entry, undo);
         }
 
-        protected DBOperationFlags UpdateClusterEntry(LowLevelTransaction tx, TreePage cursor, KVTuple kv, ref TreeNodeEntry oldEntry, long rollbackNumber)
+        protected DBResult UpdateClusterEntry(LowLevelTransaction tx, TreePage cursor, KVTuple kv, ref TreeNodeEntry oldEntry, long rollbackNumber)
         {
             throw null;
         }

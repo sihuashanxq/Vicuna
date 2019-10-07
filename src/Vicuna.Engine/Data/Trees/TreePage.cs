@@ -55,14 +55,14 @@ namespace Vicuna.Engine.Data.Trees
             get => ref Header.Cast<TreePageHeader>();
         }
 
-        public TreePage Search(Span<byte> key)
+        public void Search(Span<byte> key)
         {
             var count = IsLeaf ? TreeHeader.Count : TreeHeader.Count - 1;
             if (count <= 0)
             {
                 LastMatch = -1;
                 LastMatchIndex = 0;
-                return this;
+                return;
             }
 
             //>last
@@ -70,7 +70,7 @@ namespace Vicuna.Engine.Data.Trees
             {
                 LastMatch = IsBranch ? 0 : -1;
                 LastMatchIndex = IsBranch ? count : count - 1;
-                return this;
+                return;
             }
 
             //<first
@@ -78,11 +78,11 @@ namespace Vicuna.Engine.Data.Trees
             {
                 LastMatch = IsBranch ? 0 : 1;
                 LastMatchIndex = 0;
-                return this;
+                return;
             }
 
             BinarySearch(key, 0, count - 1);
-            return this;
+            return;
         }
 
         public PagePosition FindPage(Span<byte> key)
@@ -208,19 +208,39 @@ namespace Vicuna.Engine.Data.Trees
         }
 
         [MethodImpl(MethodImplOptions.AggressiveInlining)]
+        public void SearchForAdd(LowLevelTransaction lltx, Span<byte> key, out int matchFlags, out int matchIndex)
+        {
+            Search(key);
+
+            if (IsLeaf)
+            {
+                LastMatchIndex = TreeHeader.Count != 0 && LastMatch < 0 ? LastMatchIndex + 1 : LastMatchIndex;
+            }
+
+            matchFlags = LastMatch;
+            matchIndex = LastMatchIndex;
+        }
+
+        [MethodImpl(MethodImplOptions.AggressiveInlining)]
         public bool AllocForKey(LowLevelTransaction lltx, ref TreeNodeEntryAllocContext ctx, out int matchFlags, out int matchIndex, out TreeNodeEntry entry)
         {
             Search(ctx.Key);
 
             if (IsLeaf)
             {
-                LastMatchIndex = TreeHeader.Count != 0 && LastMatch <= 0 ? LastMatchIndex + 1 : LastMatchIndex;
+                LastMatchIndex = TreeHeader.Count != 0 && LastMatch < 0 ? LastMatchIndex + 1 : LastMatchIndex;
             }
 
             matchFlags = LastMatch;
             matchIndex = LastMatchIndex;
 
-            return Alloc(lltx, matchIndex, ref ctx, out entry);
+            if (LastMatch != 0 || !ctx.NodeFlags.HasFlag(TreeNodeHeaderFlags.Data) || !ctx.NodeFlags.HasFlag(TreeNodeHeaderFlags.Primary))
+            {
+                return Alloc(lltx, matchIndex, ref ctx, out entry);
+            }
+
+            entry = GetNodeEntry(LastMatchIndex);
+            return false;
         }
 
         [MethodImpl(MethodImplOptions.AggressiveInlining)]

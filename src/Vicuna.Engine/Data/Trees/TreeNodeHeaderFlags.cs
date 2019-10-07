@@ -13,17 +13,4 @@ namespace Vicuna.Engine.Data.Trees
 
         Overflow = 8
     }
-
-    public static class TreeNodeHeaderFlagsExtensions
-    {
-        public static bool HasValue(this TreeNodeHeaderFlags flags)
-        {
-            return flags.HasFlag(TreeNodeHeaderFlags.Data) && !flags.HasFlag(TreeNodeHeaderFlags.Overflow);
-        }
-
-        public static bool HasVersion(this TreeNodeHeaderFlags flags)
-        {
-            return flags.HasFlag(TreeNodeHeaderFlags.Primary) && flags.HasFlag(TreeNodeHeaderFlags.Data);
-        }
-    }
 }

@@ -1,6 +1,5 @@
 ﻿using System;
 using System.Collections.Generic;
-using System.Text;
 using Vicuna.Engine.Locking;
 using Vicuna.Engine.Transactions;
 
@@ -8,20 +7,18 @@ namespace Vicuna.Engine.Data.Trees
 {
     public partial class Tree
     {
-        private Stack<TreePage> GetPagesForSplit(LowLevelTransaction lltx, Span<byte> key, ushort entrySize)
+        private Stack<TreePage> GetPagePathForKey(LowLevelTransaction lltx, Span<byte> key, ushort size, LatchFlags latchFlags = LatchFlags.Write)
         {
             var path = new Stack<TreePage>();
             var buffer = lltx.Buffers.GetEntry(_root.FileId, _root.PageNumber);
 
             while (true)
             {
-                var page = lltx.EnterWrite(buffer).AsTree();
-                ref var header = ref page.TreeHeader;
-                var freeSize = header.FreeSize;
-                var isLeaf = header.IsLeaf;
-                if (isLeaf)
+                var page = lltx.EnterLatch(buffer, latchFlags).AsTree();
+                ref var th = ref page.TreeHeader;
+                if (th.IsLeaf)
                 {
-                    if (freeSize > entrySize)
+                    if (th.FreeSize > size)
                     {
                         while (path.Count != 0)
                         {
@@ -32,7 +29,7 @@ namespace Vicuna.Engine.Data.Trees
                     path.Push(page);
                     break;
                 }
-                else if (freeSize > MaxBranchEntrySize)
+                else if (th.FreeSize > MaxBranchEntrySize)
                 {
                     while (path.Count != 0)
                     {
@@ -63,7 +60,7 @@ namespace Vicuna.Engine.Data.Trees
                 }
 
                 latch?.Dispose();
-                latch = lltx.RemoveLatch(buffer);
+                latch = lltx.PopLatch(buffer);
                 buffer = lltx.Buffers.GetEntry(page.FindPage(key));
             }
         }

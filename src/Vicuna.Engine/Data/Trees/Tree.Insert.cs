@@ -1,6 +1,6 @@
 ﻿using System;
-using System.Collections;
 using System.Collections.Generic;
+using Vicuna.Engine.Locking;
 using Vicuna.Engine.Transactions;
 using static Vicuna.Engine.Data.Trees.TreePage;
 
@@ -8,7 +8,7 @@ namespace Vicuna.Engine.Data.Trees
 {
     public partial class Tree
     {
-        public DBOperationFlags AddOpmtClusterEntry(LowLevelTransaction lltx, KVTuple kv, TreeNodeHeaderFlags nodeFlags)
+        public DBResult AddClusterEntry(LowLevelTransaction lltx, KVTuple kv, TreeNodeHeaderFlags nodeFlags)
         {
             var page = GetPageForUpdate(lltx, kv.Key, Constants.BTreeLeafPageDepth);
             if (page == null)
@@ -16,9 +16,76 @@ namespace Vicuna.Engine.Data.Trees
                 throw new NullReferenceException(nameof(page));
             }
 
-            if (kv.Length > MaxEntrySizeInPage)
+            var dbResult = AddClusterEntry(lltx, page, kv, nodeFlags);
+            if (dbResult.IsSplitPage() == false)
             {
-                return AddClusterOverflowEntry(lltx, page, kv);
+                return dbResult;
+            }
+
+            var size = TreeHelper.GetNodeSizeInPage(kv, nodeFlags);
+            var path = GetPagePathForKey(lltx, kv.Key, size);
+            if (path.Count == 0)
+            {
+                throw new InvalidOperationException("internal error!");
+            }
+
+            return AddClusterEntry(lltx, path.Pop(), kv, path, nodeFlags);
+        }
+
+        protected DBResult AddClusterEntry(LowLevelTransaction lltx, TreePage page, KVTuple kv, TreeNodeHeaderFlags nodeFlags, bool isOpmst = true)
+        {
+            var matchFlags = 0;
+            var matchIndex = 0;
+
+            if (true)
+            {
+                page.SearchForAdd(lltx, kv.Key, out matchFlags, out matchIndex);
+            }
+
+            if (matchFlags == 0)
+            {
+                return AddClusterEntryInPlace(lltx, page, kv, matchIndex, nodeFlags);
+            }
+
+            var dbResult = LockRec(lltx, page, matchIndex, LockFlags.Document | LockFlags.Exclusive, true);
+            if (dbResult.IsSuccess())
+            {
+                dbResult = AddKVToLeafPage(lltx, page, kv, matchIndex, nodeFlags);
+            }
+
+            if (isOpmst && dbResult.IsSplitPage())
+            {
+                lltx.ExitLatch(page.Position);
+            }
+
+            return dbResult;
+        }
+
+        protected DBResult AddClusterEntry(LowLevelTransaction lltx, TreePage page, KVTuple kv, Stack<TreePage> path, TreeNodeHeaderFlags nodeFlags)
+        {
+            var dbResult = AddClusterEntry(lltx, page, kv, nodeFlags, false);
+            if (dbResult.IsSplitPage() == false)
+            {
+                return dbResult;
+            }
+
+            var ctx = SplitLeafPage(lltx, page, path, kv.Key, page.LastMatchIndex);
+            if (ctx.Index >= page.LastMatchIndex)
+            {
+                return AddClusterEntry(lltx, ctx.Current, kv, path, nodeFlags);
+            }
+            else
+            {
+                return AddClusterEntry(lltx, ctx.Sibling, kv, path, nodeFlags);
+            }
+        }
+
+        protected DBResult AddClusterEntryInPlace(LowLevelTransaction lltx, TreePage page, KVTuple kv, int index, TreeNodeHeaderFlags nodeFlags)
+        {
+            var e1 = page.GetNodeEntry(index);
+            if (e1.Header.IsDeleted == false)
+            {
+                throw new InvalidOperationException("duplicate key for...");
             }
 
             var ctx = new TreeNodeEntryAllocContext()
@@ -30,7 +97,7 @@ namespace Vicuna.Engine.Data.Trees
                 NodeFlags = nodeFlags,
             };
 
-            if (page.AllocForKey(lltx, ref ctx, out var _, out var _, out var entry))
+            if (page.Alloc(lltx, index, ref ctx, out var entry))
             {
                 ref var header = ref entry.Header;
 
@@ -49,77 +116,13 @@ namespace Vicuna.Engine.Data.Trees
 
                 lltx.WriteBTreeLeafPageInsertEntry(page.Position, nodeFlags, kv.Key, kv.Value);
 
-                return DBOperationFlags.Ok;
+                return DBResult.Success;
             }
 
-            return DBOperationFlags.Split;
+            return DBResult.SplitPage;
         }
 
-        public DBOperationFlags AddPsmtClusterEntry(LowLevelTransaction lltx, KVTuple kv, TreeNodeHeaderFlags nodeFlags)
-        {
-            var size = TreeHelper.GetNodePageSize(kv, nodeFlags);
-            var path = GetPagesForSplit(lltx, kv.Key, size);
-            if (path.Count == 0)
-            {
-                throw new InvalidOperationException("internal error!");
-            }
-
-            return AddPsmtClusterEntry(lltx, path.Pop(), kv, path, nodeFlags);
-        }
-
-        protected DBOperationFlags AddPsmtClusterEntry(LowLevelTransaction lltx, TreePage page, KVTuple kv, Stack<TreePage> path, TreeNodeHeaderFlags nodeFlags)
-        {
-            if (kv.Length > MaxEntrySizeInPage)
-            {
-                return AddClusterOverflowEntry(lltx, page, kv);
-            }
-
-            var nodeCtx = new TreeNodeEntryAllocContext()
-            {
-                Key = kv.Key,
-                Size = (ushort)kv.Length,
-                KeySize = (ushort)kv.Key.Length,
-                ValueSize = (ushort)kv.Value.Length,
-                NodeFlags = nodeFlags,
-            };
-
-            if (page.AllocForKey(lltx, ref nodeCtx, out var matchFlags, out var matchIndex, out var entry))
-            {
-                ref var header = ref entry.Header;
-
-                header.IsDeleted = false;
-                header.KeySize = (ushort)kv.Key.Length;
-                header.DataSize = (ushort)kv.Value.Length;
-                header.NodeFlags = TreeNodeHeaderFlags.Data | TreeNodeHeaderFlags.Primary;
-
-                kv.Key.CopyTo(entry.Key);
-                kv.Value.CopyTo(entry.Value);
-
-                ref var versionHeader = ref entry.VersionHeader;
-
-                versionHeader.TransactionNumber = lltx.Id;
-                versionHeader.TransactionRollbackNumber = -1;
-
-                lltx.WriteBTreeLeafPageInsertEntry(page.Position, TreeNodeHeaderFlags.Primary, kv.Key, kv.Value);
-
-                return DBOperationFlags.Ok;
-            }
-
-            var ctx = SplitPage(lltx, page, path, kv.Key, matchIndex);
-            if (ctx.Index >= matchIndex)
-            {
-                return AddPsmtClusterEntry(lltx, ctx.Current, kv, path, nodeFlags);
-            }
-
-            return AddPsmtClusterEntry(lltx, ctx.Sibling, kv, path, nodeFlags);
-        }
-
-        protected DBOperationFlags AddClusterOverflowEntry(LowLevelTransaction lltx, TreePage page, KVTuple kv)
-        {
-            return DBOperationFlags.Ok;
-        }
-
-        protected void AddSplitedBranchEntry(LowLevelTransaction lltx, TreePage page, long lPageNumber, long rPageNumber, Span<byte> key, Stack<TreePage> pages)
+        protected void AddBranchPointerEntry(LowLevelTransaction lltx, TreePage page, long lPageNumber, long rPageNumber, Span<byte> key, Stack<TreePage> path)
         {
             ref var header = ref page.TreeHeader;
             if (!header.NodeFlags.HasFlag(TreeNodeFlags.Branch))
@@ -142,20 +145,20 @@ namespace Vicuna.Engine.Data.Trees
                 entry2.Header.PageNumber = rPageNumber;
                 entry2.Header.NodeFlags = TreeNodeHeaderFlags.Page;
 
-                //lltx.WriteFixedBTreeBranchPageInsertEntry(page.Position, key, lPageNumber, rPageNumber);
+                lltx.WriteBTreeBranchPageInsertEntry(page.Position, key, lPageNumber, rPageNumber);
                 return;
             }
 
             if (header.FreeSize < MaxBranchEntrySize)
             {
-                var ctx = SplitBranch(lltx, page, pages, header.Count / 2);
+                var ctx = SplitBranchPage(lltx, page, path, header.Count / 2);
                 if (TreePage.CompareKey(key, ctx.Sibling.FirstKey) >= 0)
                 {
-                    AddSplitedBranchEntry(lltx, ctx.Sibling, lPageNumber, rPageNumber, key, pages);
+                    AddBranchPointerEntry(lltx, ctx.Sibling, lPageNumber, rPageNumber, key, path);
                 }
                 else
                 {
-                    AddSplitedBranchEntry(lltx, ctx.Current, lPageNumber, rPageNumber, key, pages);
+                    AddBranchPointerEntry(lltx, ctx.Current, lPageNumber, rPageNumber, key, path);
                 }
             }
             else
@@ -201,6 +204,42 @@ namespace Vicuna.Engine.Data.Trees
 
                 lltx.WriteBTreeBranchPageInsertEntry(page.Position, key, lPageNumber, rPageNumber);
             }
+        }
+
+        protected DBResult AddKVToLeafPage(LowLevelTransaction lltx, TreePage page, KVTuple kv, int index, TreeNodeHeaderFlags nodeFlags)
+        {
+            var ctx = new TreeNodeEntryAllocContext()
+            {
+                Key = kv.Key,
+                Size = (ushort)kv.Length,
+                KeySize = (ushort)kv.Key.Length,
+                ValueSize = (ushort)kv.Value.Length,
+                NodeFlags = nodeFlags,
+            };
+
+            if (page.Alloc(lltx, index, ref ctx, out var entry))
+            {
+                ref var header = ref entry.Header;
+
+                header.IsDeleted = false;
+                header.KeySize = (ushort)kv.Key.Length;
+                header.DataSize = (ushort)kv.Value.Length;
+                header.NodeFlags = nodeFlags;
+
+                kv.Key.CopyTo(entry.Key);
+                kv.Value.CopyTo(entry.Value);
+
+                ref var versionHeader = ref entry.VersionHeader;
+
+                versionHeader.TransactionNumber = lltx.Id;
+                versionHeader.TransactionRollbackNumber = -1;
+
+                lltx.WriteBTreeLeafPageInsertEntry(page.Position, nodeFlags, kv.Key, kv.Value);
+
+                return DBResult.Success;
+            }
+
+            return DBResult.SplitPage;
         }
     }
 }

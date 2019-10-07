@@ -8,7 +8,7 @@ namespace Vicuna.Engine.Data.Trees
 {
     public partial class Tree
     {
-        protected SplitContext SplitPage(LowLevelTransaction lltx, TreePage current, Stack<TreePage> path, Span<byte> key, int index)
+        protected SplitContext SplitLeafPage(LowLevelTransaction lltx, TreePage current, Stack<TreePage> path, Span<byte> key, int index)
         {
             if (!current.IsLeaf)
             {
@@ -27,7 +27,7 @@ namespace Vicuna.Engine.Data.Trees
 
             if (isRoot)
             {
-                SplitRoot(lltx, ref ctx);
+                SplitRootPage(lltx, ref ctx);
             }
             else
             {
@@ -37,7 +37,7 @@ namespace Vicuna.Engine.Data.Trees
             return ctx;
         }
 
-        private SplitContext SplitBranch(LowLevelTransaction lltx, TreePage current, Stack<TreePage> path, int index)
+        private SplitContext SplitBranchPage(LowLevelTransaction lltx, TreePage current, Stack<TreePage> path, int index)
         {
             if (!current.IsBranch)
             {
@@ -56,7 +56,7 @@ namespace Vicuna.Engine.Data.Trees
 
             if (isRoot)
             {
-                SplitRoot(lltx, ref ctx);
+                SplitRootPage(lltx, ref ctx);
             }
             else
             {
@@ -66,7 +66,7 @@ namespace Vicuna.Engine.Data.Trees
             return ctx;
         }
 
-        private void SplitRoot(LowLevelTransaction lltx, ref SplitContext ctx)
+        private void SplitRootPage(LowLevelTransaction lltx, ref SplitContext ctx)
         {
             ref var rootHeader = ref ctx.Current.TreeHeader;
             var root = ctx.Current;
@@ -127,7 +127,7 @@ namespace Vicuna.Engine.Data.Trees
                 ctx.Parent = path.Pop();
             }
 
-            AddSplitedBranchEntry(lltx, ctx.Parent, currentHeader.PageNumber, siblingHeader.PageNumber, key, path);
+            AddBranchPointerEntry(lltx, ctx.Parent, currentHeader.PageNumber, siblingHeader.PageNumber, key, path);
         }
 
         private TreePage ModifyPage(LowLevelTransaction lltx, int fileId, long pageNumber)

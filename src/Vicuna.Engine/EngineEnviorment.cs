@@ -10,9 +10,12 @@ namespace Vicuna.Engine
         static EngineEnviorment()
         {
             LockManager = new LockManager();
-            PageManager = new PageManager(null);
+            PageManager = new PageManager(new Dictionary<int, Storages.File>());
             TransManager = new TransactionManager();
-            Transactions = new Dictionary<long, Transaction>();
+            Transactions = new Dictionary<long, Transaction>()
+            {
+                [0] = new Transaction { Id = 0 }
+            };
         }
 
         public static PageManager PageManager { get; }
