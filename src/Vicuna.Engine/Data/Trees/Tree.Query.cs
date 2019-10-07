@@ -52,7 +52,7 @@ namespace Vicuna.Engine.Data.Trees
             while (true)
             {
                 //read before latched,it's safe?
-                var page = lltx.EnterLatch(buffer, IsBranch(buffer) ? LatchFlags.Read : latchFlags).AsTree(mode);
+                var page = lltx.EnterLatch(buffer, TreeHelper.IsBranch(buffer.Page) ? LatchFlags.Read : latchFlags).AsTree(mode);
                 if (page.Depth == depth)
                 {
                     latch?.Dispose();

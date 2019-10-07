@@ -4,7 +4,7 @@ using Vicuna.Engine.Transactions;
 
 namespace Vicuna.Engine.Locking
 {
-    public struct LockRequest
+    public struct LockContext
     {
         public TableIndex Index;
 

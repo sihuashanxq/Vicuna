@@ -233,14 +233,8 @@ namespace Vicuna.Engine.Data.Trees
 
             matchFlags = LastMatch;
             matchIndex = LastMatchIndex;
-
-            if (LastMatch != 0 || !ctx.NodeFlags.HasFlag(TreeNodeHeaderFlags.Data) || !ctx.NodeFlags.HasFlag(TreeNodeHeaderFlags.Primary))
-            {
-                return Alloc(lltx, matchIndex, ref ctx, out entry);
-            }
-
-            entry = GetNodeEntry(LastMatchIndex);
-            return false;
+               
+            return Alloc(lltx, matchIndex, ref ctx, out entry);
         }
 
         [MethodImpl(MethodImplOptions.AggressiveInlining)]

@@ -8,7 +8,7 @@ namespace Vicuna.Engine.Data.Trees
 {
     public partial class Tree
     {
-        protected SplitContext SplitLeafPage(LowLevelTransaction lltx, TreePage current, Stack<TreePage> path, Span<byte> key, int index)
+        protected SplitContext SplitLeaf(LowLevelTransaction lltx, TreePage current, Stack<TreePage> path, Span<byte> key, int index)
         {
             if (!current.IsLeaf)
             {
@@ -21,13 +21,13 @@ namespace Vicuna.Engine.Data.Trees
             {
                 Index = index,
                 Current = current,
-                Sibling = AllocatePage(lltx, current.Depth, currentHeader.FileId, currentHeader.NodeFlags & (~TreeNodeFlags.Root)),
+                Sibling = CreatePage(lltx, current.Depth, currentHeader.FileId, currentHeader.NodeFlags & (~TreeNodeFlags.Root)),
                 OldSibling = ModifyPage(lltx, currentHeader.FileId, currentHeader.NextPageNumber)
             };
 
             if (isRoot)
             {
-                SplitRootPage(lltx, ref ctx);
+                SplitRoot(lltx, ref ctx, path);
             }
             else
             {
@@ -37,7 +37,7 @@ namespace Vicuna.Engine.Data.Trees
             return ctx;
         }
 
-        private SplitContext SplitBranchPage(LowLevelTransaction lltx, TreePage current, Stack<TreePage> path, int index)
+        private SplitContext SplitBranch(LowLevelTransaction lltx, TreePage current, Stack<TreePage> path, int index)
         {
             if (!current.IsBranch)
             {
@@ -50,13 +50,13 @@ namespace Vicuna.Engine.Data.Trees
             {
                 Index = index,
                 Current = current,
-                Sibling = AllocatePage(lltx, current.Depth, currentHeader.FileId, currentHeader.NodeFlags & (~TreeNodeFlags.Root)),
+                Sibling = CreatePage(lltx, current.Depth, currentHeader.FileId, currentHeader.NodeFlags & (~TreeNodeFlags.Root)),
                 OldSibling = ModifyPage(lltx, currentHeader.FileId, currentHeader.NextPageNumber)
             };
 
             if (isRoot)
             {
-                SplitRootPage(lltx, ref ctx);
+                SplitRoot(lltx, ref ctx, path);
             }
             else
             {
@@ -66,13 +66,13 @@ namespace Vicuna.Engine.Data.Trees
             return ctx;
         }
 
-        private void SplitRootPage(LowLevelTransaction lltx, ref SplitContext ctx)
+        private void SplitRoot(LowLevelTransaction lltx, ref SplitContext ctx, Stack<TreePage> path)
         {
             ref var rootHeader = ref ctx.Current.TreeHeader;
             var root = ctx.Current;
 
             ctx.Parent = root;
-            ctx.Current = AllocatePage(lltx, root.Depth, root.Position.FileId, rootHeader.NodeFlags & (~TreeNodeFlags.Root));
+            ctx.Current = CreatePage(lltx, root.Depth, root.Position.FileId, rootHeader.NodeFlags & (~TreeNodeFlags.Root));
 
             root.CopyEntriesTo(lltx, ctx.Current);
 
@@ -81,7 +81,7 @@ namespace Vicuna.Engine.Data.Trees
 
             lltx.WriteFixedBTreeRootSplitted(root.Position);
 
-            SplitPage(lltx, ref ctx, null);
+            SplitPage(lltx, ref ctx, path);
         }
 
         private void SplitPage(LowLevelTransaction lltx, ref SplitContext ctx, Stack<TreePage> path)
@@ -140,7 +140,7 @@ namespace Vicuna.Engine.Data.Trees
             return lltx.EnterWrite(fileId, pageNumber).AsTree();
         }
 
-        private TreePage AllocatePage(LowLevelTransaction lltx, byte depth, int fileId, TreeNodeFlags flags)
+        private TreePage CreatePage(LowLevelTransaction lltx, byte depth, int fileId, TreeNodeFlags flags)
         {
             var page = lltx.AllocatePage(fileId);
             return CreatePage(lltx, depth, page.FileId, page.PageNumber, flags);

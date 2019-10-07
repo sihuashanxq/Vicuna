@@ -69,14 +69,24 @@ namespace Vicuna.Engine.Data.Trees
                 return dbResult;
             }
 
-            var ctx = SplitLeafPage(lltx, page, path, kv.Key, page.LastMatchIndex);
-            if (ctx.Index >= page.LastMatchIndex)
+            var ctx = SplitLeaf(lltx, page, path, kv.Key, page.LastMatchIndex);
+            if (ctx.Current != page)
             {
-                return AddClusterEntry(lltx, ctx.Current, kv, path, nodeFlags);
+                lltx.LockManager.SplitRecLock(page.Position, ctx.Sibling.Position, ctx.Index);
+                lltx.LockManager.SplitRecLock(page.Position, ctx.Current.Position, 0);
             }
             else
             {
-                return AddClusterEntry(lltx, ctx.Sibling, kv, path, nodeFlags);
+                lltx.LockManager.SplitRecLock(page.Position, ctx.Sibling.Position, ctx.Index);
+            }
+
+            if (ctx.Index >= page.LastMatchIndex)
+            {
+                return AddClusterEntry(lltx, ctx.Current, kv, nodeFlags);
+            }
+            else
+            {
+                return AddClusterEntry(lltx, ctx.Sibling, kv, nodeFlags);
             }
         }
 
@@ -151,7 +161,7 @@ namespace Vicuna.Engine.Data.Trees
 
             if (header.FreeSize < MaxBranchEntrySize)
             {
-                var ctx = SplitBranchPage(lltx, page, path, header.Count / 2);
+                var ctx = SplitBranch(lltx, page, path, header.Count / 2);
                 if (TreePage.CompareKey(key, ctx.Sibling.FirstKey) >= 0)
                 {
                     AddBranchPointerEntry(lltx, ctx.Sibling, lPageNumber, rPageNumber, key, path);

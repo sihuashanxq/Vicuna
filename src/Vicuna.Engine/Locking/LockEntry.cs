@@ -158,7 +158,7 @@ namespace Vicuna.Engine.Locking
         {
             var mid = index / 8;
 
-            Array.Copy(Bits, mid, bits, 0, Count - mid);
+            Array.Copy(Bits, mid, bits, 0, Bits.Length - mid);
 
             bits[0] = (byte)(bits[0] & (byte.MaxValue << (index % 8)));
             Bits[mid] = (byte)(Bits[mid] & (byte.MaxValue >> (8 - index % 8)));
@@ -169,7 +169,7 @@ namespace Vicuna.Engine.Locking
         {
             var mid = index / 8;
 
-            Unsafe.CopyBlock(ref Bits[mid], ref *bits, (uint)(Count - mid));
+            Unsafe.CopyBlockUnaligned(ref *bits, ref Bits[mid], (uint)(Bits.Length - mid));
 
             bits[0] = (byte)(bits[0] & (byte.MaxValue << (index % 8)));
             Bits[mid] = (byte)(Bits[mid] & (byte.MaxValue >> (8 - index % 8)));

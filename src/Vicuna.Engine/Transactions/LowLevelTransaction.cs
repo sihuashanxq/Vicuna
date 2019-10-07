@@ -1,11 +1,9 @@
 ﻿using System;
 using System.Collections.Generic;
-using System.IO;
 using System.Runtime.CompilerServices;
 using Vicuna.Engine.Buffers;
 using Vicuna.Engine.Locking;
 using Vicuna.Engine.Paging;
-using Vicuna.Engine.Storages;
 using Vicuna.Storage.Collections;
 
 namespace Vicuna.Engine.Transactions
@@ -16,26 +14,26 @@ namespace Vicuna.Engine.Transactions
 
         public bool Modified { get; set; }
 
-        internal BufferPool Buffers { get; }
+        public BufferPool Buffers { get; }
 
-        internal FastList<byte> Logger { get; }
+        public FastList<byte> Logger { get; }
 
-        internal PageManager PageManager { get; }
+        public LockManager LockManager { get; }
 
-        internal Transaction Transaction { get; }
+        public PageManager PageManager { get; }
 
-        internal HashSet<Page> Modifies { get; }
+        public Transaction Transaction { get; }
 
-        internal Dictionary<object, LatchScope> LatchLocks { get; }
+        public HashSet<PagePosition> Modifies { get; }
 
-        internal LockManager LockManager { get; }
+        public Dictionary<object, LatchScope> LatchLocks { get; }
 
         public LowLevelTransaction(long id, BufferPool buffers)
         {
             Id = id;
             Buffers = buffers;
             Logger = new FastList<byte>();
-            Modifies = new HashSet<Page>();
+            Modifies = new HashSet<PagePosition>();
             LatchLocks = new Dictionary<object, LatchScope>();
             Transaction = EngineEnviorment.Transactions[0];
             LockManager = EngineEnviorment.LockManager;
@@ -216,6 +214,14 @@ namespace Vicuna.Engine.Transactions
 
         public void Commit()
         {
+            if (Modified)
+            {
+                foreach (var item in Modifies)
+                {
+                    Buffers.AddFlushEntry(item);
+                }
+            }
+
             ReleaseResources();
             LatchLocks.Clear();
         }

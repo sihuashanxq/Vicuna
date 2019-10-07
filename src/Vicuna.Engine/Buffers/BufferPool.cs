@@ -1,5 +1,7 @@
 ﻿using System.Collections.Generic;
+using System.IO;
 using System.Threading;
+using System.Threading.Tasks;
 using Vicuna.Engine.Paging;
 
 namespace Vicuna.Engine.Buffers
@@ -166,6 +168,16 @@ namespace Vicuna.Engine.Buffers
         public void AddFlushEntry(BufferEntry buffer)
         {
             Flush.AddFirst(buffer);
+        }
+
+        public void AddFlushEntry(PagePosition pos)
+        {
+            lock (SyncRoot)
+            {
+                var buffer = GetEntry(pos);
+
+                AddFlushEntry(buffer);
+            }
         }
 
         private void AddLRUEntry(BufferEntry buffer)

@@ -1,9 +1,6 @@
 ﻿using System;
-using System.Runtime.CompilerServices;
-using Vicuna.Engine.Buffers;
 using Vicuna.Engine.Data.Tables;
 using Vicuna.Engine.Locking;
-using Vicuna.Engine.Paging;
 using Vicuna.Engine.Transactions;
 
 namespace Vicuna.Engine.Data.Trees
@@ -51,12 +48,6 @@ namespace Vicuna.Engine.Data.Trees
             _pageAllocator = pageAllocator;
         }
 
-        [MethodImpl(MethodImplOptions.AggressiveInlining)]
-        private bool IsBranch(BufferEntry buffer)
-        {
-            return buffer.Page.Header.Cast<TreePageHeader>().NodeFlags.HasFlag(TreeNodeFlags.Branch);
-        }
-
         protected long BackUpUndoEntry(LowLevelTransaction lltx, TreePage page, int index)
         {
             return -1;
@@ -65,13 +56,12 @@ namespace Vicuna.Engine.Data.Trees
         protected DBResult LockRec(LowLevelTransaction lltx, TreePage page, int index, LockFlags lockFlags, bool add = false)
         {
             var count = page.TreeHeader.Count;
-
-            if (add)
+            if (add && lockFlags.IsDocument())
             {
                 lltx.LockManager.ExtendRecLockCap(page.Position, index, count);
             }
 
-            var req = new LockRequest()
+            var req = new LockContext()
             {
                 Flags = lockFlags,
                 Index = _index,

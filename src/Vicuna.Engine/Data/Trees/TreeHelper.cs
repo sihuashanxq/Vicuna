@@ -1,5 +1,6 @@
 ﻿using System;
 using System.Runtime.CompilerServices;
+using Vicuna.Engine.Paging;
 
 namespace Vicuna.Engine.Data.Trees
 {
@@ -27,6 +28,12 @@ namespace Vicuna.Engine.Data.Trees
             }
 
             return (short)offset;
+        }
+
+        [MethodImpl(MethodImplOptions.AggressiveInlining)]
+        public static bool IsBranch(Page page)
+        {
+            return page.Header.Cast<TreePageHeader>().NodeFlags.HasFlag(TreeNodeFlags.Branch);
         }
     }
 }
