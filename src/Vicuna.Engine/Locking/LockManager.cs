@@ -230,11 +230,11 @@ namespace Vicuna.Engine.Locking
                 return null;
             }
 
-            var count = fromEntry.Bits.Length - (mid >> 3) + 8;
+            var count = fromEntry.Bits.Length - (mid >> 3) + 1;
             var buffer = stackalloc byte[count];
 
             fromEntry.CopyBitsTo(mid, buffer);
-            fromEntry.ResetBits(mid);
+            fromEntry.TuncateBits(mid);
 
             for (var i = 0; i < count; i++)
             {
@@ -293,6 +293,7 @@ namespace Vicuna.Engine.Locking
             }
 
             entry = GetCanReuseRecLock(ref ctx) ?? CreateRecLock(ref ctx);
+
             return DBResult.Success;
         }
 

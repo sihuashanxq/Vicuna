@@ -14,9 +14,11 @@ namespace Vicuna.Engine
             TransManager = new TransactionManager();
             Transactions = new Dictionary<long, Transaction>()
             {
-                [0] = new Transaction { Id = 0 }
+                [0] = Transaction
             };
         }
+
+        public static Transaction Transaction = new Transaction { Id = 0 };
 
         public static PageManager PageManager { get; }
 

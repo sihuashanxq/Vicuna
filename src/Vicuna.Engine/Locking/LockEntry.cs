@@ -130,26 +130,29 @@ namespace Vicuna.Engine.Locking
         }
 
         [MethodImpl(MethodImplOptions.AggressiveInlining)]
-        public void ResetBits(int index)
+        public void TuncateBits(int index)
         {
-            var n = index / 8;
-            if (n >= Bits.Length)
+            if (index == 0)
             {
+                Bits = new byte[0];
                 return;
             }
 
+            var n = index >> 3;
             var m = index % 8;
+            var bits = new byte[Math.Min(n + 1, Bits.Length)];
+
+            Array.Copy(Bits, bits, bits.Length);
+
             if (m == 0)
             {
-                Array.Clear(Bits, n, Bits.Length - n);
+                Array.Clear(bits, n, bits.Length - n);
+                Bits = bits;
                 return;
             }
 
-            if (n < Bits.Length - 1)
-            {
-                Array.Clear(Bits, n + 1, Bits.Length - n - 1);
-            }
-
+            Array.Clear(bits, n + 1, bits.Length - n - 1);
+            Bits = bits;
             Bits[n] = (byte)(Bits[n] & (byte.MaxValue >> (8 - m)));
         }
 

@@ -28,14 +28,15 @@ namespace Vicuna.Engine.Transactions
 
         public Dictionary<object, LatchScope> LatchLocks { get; }
 
+        public bool LogEnable { get; }
+
         public LowLevelTransaction(long id, BufferPool buffers)
         {
             Id = id;
             Buffers = buffers;
             Logger = new FastList<byte>();
-            Modifies = new HashSet<PagePosition>();
             LatchLocks = new Dictionary<object, LatchScope>();
-            Transaction = EngineEnviorment.Transactions[0];
+            Transaction = EngineEnviorment.Transaction;
             LockManager = EngineEnviorment.LockManager;
         }
 
