@@ -9,6 +9,11 @@ namespace Vicuna.Engine
     {
         static EngineEnviorment()
         {
+            Ini();
+        }
+
+        public static void Ini()
+        {
             LockManager = new LockManager();
             PageManager = new PageManager(new Dictionary<int, Storages.File>());
             TransManager = new TransactionManager();
@@ -20,13 +25,13 @@ namespace Vicuna.Engine
 
         public static Transaction Transaction = new Transaction { Id = 0 };
 
-        public static PageManager PageManager { get; }
+        public static PageManager PageManager { get; set; }
 
-        public static LockManager LockManager { get; }
+        public static LockManager LockManager { get; set; }
 
-        public static TransactionManager TransManager { get; }
+        public static TransactionManager TransManager { get; set; }
 
-        public static Dictionary<long, Transaction> Transactions { get; }
+        public static Dictionary<long, Transaction> Transactions { get; set; }
     }
 
     public class TransactionManager

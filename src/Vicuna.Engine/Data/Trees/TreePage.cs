@@ -233,7 +233,7 @@ namespace Vicuna.Engine.Data.Trees
 
             matchFlags = LastMatch;
             matchIndex = LastMatchIndex;
-               
+
             return Alloc(lltx, matchIndex, ref ctx, out entry);
         }
 
@@ -483,7 +483,7 @@ namespace Vicuna.Engine.Data.Trees
                 throw new IndexOutOfRangeException($"index:{index},slot:{slot},page:{Position}");
             }
 
-            var ptr = ReadAt<ushort>(slot);
+            var ptr = ReadAt<ushort>(slot, sizeof(ushort));
             if (ptr < 0 || ptr > Constants.PageSize - Constants.PageFooterSize)
             {
                 throw new PageDamageException(this);

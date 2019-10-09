@@ -30,17 +30,16 @@ namespace Vicuna.Engine.Locking
             {
                 switch (Flags)
                 {
-                    case LatchFlags.Read:
                     case LatchFlags.Write:
-                        throw new InvalidOperationException();
+                    case LatchFlags.RWWrite:
+                        return true;
                     case LatchFlags.RWRead:
-                        if (Latch._internalLock.TryEnterWriteLock(0))
-                        {
-                            Flags = LatchFlags.RWWrite;
-                            return true;
-                        }
-
-                        return false;
+                        //don't wait
+                        var ok = Latch._internalLock.TryEnterWriteLock(0);
+                        Flags = ok ? LatchFlags.RWWrite : Flags;
+                        return ok;
+                    default:
+                        throw new InvalidOperationException();
                 }
             }
 

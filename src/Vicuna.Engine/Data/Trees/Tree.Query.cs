@@ -44,7 +44,7 @@ namespace Vicuna.Engine.Data.Trees
             return path;
         }
 
-        private TreePage GetPageForKey(LowLevelTransaction lltx, Span<byte> key, byte depth, LatchFlags latchFlags, TreeNodeEnumMode mode = TreeNodeEnumMode.Lte)
+        private TreePage GetPageForKey(LowLevelTransaction lltx, Span<byte> key, LatchFlags latchFlags, TreeNodeEnumMode mode = TreeNodeEnumMode.Lte)
         {
             var latch = default(LatchScope);
             var buffer = lltx.Buffers.GetEntry(_root.FileId, _root.PageNumber);
@@ -53,26 +53,25 @@ namespace Vicuna.Engine.Data.Trees
             {
                 //read before latched,it's safe?
                 var page = lltx.EnterLatch(buffer, TreeHelper.IsBranch(buffer.Page) ? LatchFlags.Read : latchFlags).AsTree(mode);
-                if (page.Depth == depth)
+                if (page.IsLeaf)
                 {
-                    latch?.Dispose();
                     return page;
                 }
 
-                latch?.Dispose();
                 latch = lltx.PopLatch(buffer);
                 buffer = lltx.Buffers.GetEntry(page.FindPage(key));
+                latch.Dispose();
             }
         }
 
-        private TreePage GetPageForQuery(LowLevelTransaction lltx, Span<byte> key, byte depth, TreeNodeEnumMode mode = TreeNodeEnumMode.Lte)
+        private TreePage GetPageForQuery(LowLevelTransaction lltx, Span<byte> key, TreeNodeEnumMode mode = TreeNodeEnumMode.Lte)
         {
-            return GetPageForKey(lltx, key, depth, LatchFlags.Read, mode);
+            return GetPageForKey(lltx, key, LatchFlags.Read, mode);
         }
 
         private TreePage GetPageForUpdate(LowLevelTransaction lltx, Span<byte> key, byte depth)
         {
-            return GetPageForKey(lltx, key, depth, LatchFlags.Write, TreeNodeEnumMode.Lte);
+            return GetPageForKey(lltx, key, LatchFlags.Write, TreeNodeEnumMode.Lte);
         }
     }
 }

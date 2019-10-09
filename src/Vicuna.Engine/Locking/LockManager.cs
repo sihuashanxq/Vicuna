@@ -4,12 +4,14 @@ using System.Threading;
 using Vicuna.Engine.Data.Tables;
 using Vicuna.Engine.Paging;
 using Vicuna.Engine.Transactions;
+using System.Linq;
+using System;
 
 namespace Vicuna.Engine.Locking
 {
     public class LockManager
     {
-        public object SyncRoot { get; } = new object();
+        public object SyncRoot => this;
 
         public Dictionary<TableIndex, LinkedList<LockEntry>> TabLocks { get; }
 
@@ -130,50 +132,6 @@ namespace Vicuna.Engine.Locking
         }
 
         /// <summary>
-        /// merge two page's rec-lock
-        /// </summary>
-        /// <param name="from"></param>
-        /// <param name="to"></param>
-        /// <param name="fromCount"></param>
-        /// <param name="toCount"></param>
-        public void MergeRecLock(PagePosition from, PagePosition to, int fromCount, int toCount)
-        {
-            var toEntry = FindFirstRecLockEntry(to);
-            var fromEntry = FindFirstRecLockEntry(from);
-            if (fromEntry == null && toEntry == null)
-            {
-                return;
-            }
-
-            var list = toEntry?.GNode?.List;
-            if (list == null)
-            {
-                list = RecLocks[to] = new LinkedList<LockEntry>();
-            }
-
-            while (toEntry != null)
-            {
-                toEntry.ExtendHeadCapacity(fromCount);
-                toEntry = FindNextLockEntry(toEntry);
-            }
-
-            while (fromEntry != null)
-            {
-                var entry = fromEntry;
-                var tx = entry.Transaction;
-
-                fromEntry.Page = to;
-                fromEntry.ExtendTailCapacity(toCount);
-                fromEntry = FindNextLockEntry(fromEntry);
-
-                entry.GNode = list.AddLast(entry);
-                entry.TNode = tx.Locks.AddLast(entry);
-            }
-
-            RecLocks.Remove(from);
-        }
-
-        /// <summary>
         /// split the from-page's rec-lock
         /// </summary>
         /// <param name="from"></param>
@@ -181,45 +139,48 @@ namespace Vicuna.Engine.Locking
         /// <param name="mid"></param>
         public void SplitRecLock(PagePosition from, PagePosition to, int mid)
         {
-            var removes = new List<LockEntry>();
-            var fromEntry = FindFirstRecLockEntry(from);
-            var list = new LinkedList<LockEntry>();
-
-            while (fromEntry != null)
+            lock (SyncRoot)
             {
-                var tx = fromEntry.Transaction;
-                var toEntry = SplitRecLock(fromEntry, to, mid);
-                if (toEntry == null)
+                var removes = new List<LockEntry>();
+                var fromEntry = FindFirstRecLockEntry(from);
+                var list = new LinkedList<LockEntry>();
+
+                while (fromEntry != null)
                 {
+                    var tx = fromEntry.Transaction;
+                    var toEntry = SplitRecLock(fromEntry, to, mid);
+                    if (toEntry == null)
+                    {
+                        fromEntry = FindNextLockEntry(fromEntry);
+                        continue;
+                    }
+
+                    toEntry.TNode = tx.Locks.AddAfter(fromEntry.TNode, toEntry);
+                    toEntry.GNode = list.AddLast(toEntry);
+
+                    if (fromEntry.IsEmpty)
+                    {
+                        removes.Add(fromEntry);
+                    }
+
+                    if (fromEntry.IsWaiting && fromEntry.IsEmpty)
+                    {
+                        tx.WaitLock = toEntry;
+                    }
+
                     fromEntry = FindNextLockEntry(fromEntry);
-                    continue;
                 }
 
-                toEntry.TNode = tx.Locks.AddAfter(fromEntry.TNode, toEntry);
-                toEntry.GNode = list.AddLast(toEntry);
-
-                if (fromEntry.IsEmpty)
+                foreach (var entry in removes)
                 {
-                    removes.Add(fromEntry);
+                    entry.TNode.List.Remove(entry.TNode);
+                    entry.GNode.List.Remove(entry.GNode);
                 }
 
-                if (fromEntry.IsWaiting && fromEntry.IsEmpty)
+                if (list.Count != 0)
                 {
-                    tx.WaitLock = toEntry;
+                    RecLocks[to] = list;
                 }
-
-                fromEntry = FindNextLockEntry(fromEntry);
-            }
-
-            foreach (var entry in removes)
-            {
-                entry.TNode.List.Remove(entry.TNode);
-                entry.GNode.List.Remove(entry.GNode);
-            }
-
-            if (list.Count != 0)
-            {
-                RecLocks[to] = list;
             }
         }
 
@@ -233,8 +194,17 @@ namespace Vicuna.Engine.Locking
             var count = fromEntry.Bits.Length - (mid >> 3) + 1;
             var buffer = stackalloc byte[count];
 
+            var bites = new byte[fromEntry.Bits.Length];
+            Array.Copy(fromEntry.Bits, bites, bites.Length);
             fromEntry.CopyBitsTo(mid, buffer);
             fromEntry.TuncateBits(mid);
+
+            if (fromEntry.IsEmpty && fromEntry.Page.PageNumber != 0)
+            {
+                fromEntry.Bits = bites;
+                fromEntry.CopyBitsTo(mid, buffer);
+                fromEntry.TuncateBits(mid);
+            }
 
             for (var i = 0; i < count; i++)
             {
@@ -253,7 +223,7 @@ namespace Vicuna.Engine.Locking
                     Transaction = fromEntry.Transaction
                 };
 
-                Unsafe.CopyBlock(ref toEntry.Bits[0], ref *buffer, (uint)count);
+                Unsafe.CopyBlockUnaligned(ref toEntry.Bits[0], ref *buffer, (uint)count);
 
                 return toEntry;
             }
@@ -721,21 +691,6 @@ namespace Vicuna.Engine.Locking
         }
 
         [MethodImpl(MethodImplOptions.AggressiveInlining)]
-        public void ExtendRecLockCap(PagePosition pos, int count, LockExtendDirection direction)
-        {
-            lock (SyncRoot)
-            {
-                var entry = FindFirstRecLockEntry(pos);
-
-                while (entry != null)
-                {
-                    entry.ExtendCapacity(count, direction);
-                    entry = FindNextLockEntry(entry);
-                }
-            }
-        }
-
-        [MethodImpl(MethodImplOptions.AggressiveInlining)]
         public void ExtendRecLockCap(PagePosition pos, int index, int count)
         {
             lock (SyncRoot)
@@ -746,12 +701,12 @@ namespace Vicuna.Engine.Locking
                 {
                     if (entry.Count < count + 1)
                     {
-                        entry.ExtendCapacity(count - entry.Count + 64, LockExtendDirection.Tail);
+                        entry.ExtendCapacity(count - entry.Count + 64);
                     }
 
                     if (index < count)
                     {
-                        entry.MoveBits(index);
+                        entry.MoveBitsUp(index);
                     }
 
                     entry = FindNextLockEntry(entry);

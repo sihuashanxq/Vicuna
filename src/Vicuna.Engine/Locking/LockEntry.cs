@@ -104,7 +104,13 @@ namespace Vicuna.Engine.Locking
         }
 
         [MethodImpl(MethodImplOptions.AggressiveInlining)]
-        public void MoveBits(int index)
+        public void MoveBitsUp(int index)
+        {
+            MoveBitsUp(index, Bits);
+        }
+
+        [MethodImpl(MethodImplOptions.AggressiveInlining)]
+        public void MoveBitsUp(int index, byte[] bits)
         {
             if (index >= Count)
             {
@@ -115,18 +121,81 @@ namespace Vicuna.Engine.Locking
 
             var mid = index >> 3;
             var mod = index % 8;
-            var bit = (Bits[mid] & Bit8Mask) >> 7;
+            var bit = (bits[mid] & Bit8Mask) >> 7;
 
-            for (var i = mid + 1; i < Bits.Length; i++)
+            for (var i = mid + 1; i < bits.Length; i++)
             {
-                var top = (Bits[i] & Bit8Mask) >> 7;
+                var top = (bits[i] & Bit8Mask) >> 7;
 
-                Bits[i] = (byte)(bit | (Bits[i] << 1));
+                bits[i] = (byte)(bit | (bits[i] << 1));
 
                 bit = top;
             }
 
-            Bits[mid] = (byte)(((Bits[mid] & byte.MaxValue << mod) << 1) | (Bits[mid] & (byte.MaxValue >> (8 - mod))));
+            bits[mid] = (byte)(((bits[mid] & byte.MaxValue << mod) << 1) | (bits[mid] & (byte.MaxValue >> (8 - mod))));
+        }
+
+        [MethodImpl(MethodImplOptions.AggressiveInlining)]
+        public void MoveBitsUp(int index, byte[] bits, int bitCount)
+        {
+            for (var i = 0; i < bitCount; i++)
+            {
+                MoveBitsUp(index, bits);
+            }
+        }
+
+        [MethodImpl(MethodImplOptions.AggressiveInlining)]
+        public void MoveBitsDown()
+        {
+            MoveBitsDown(Bits);
+        }
+
+        [MethodImpl(MethodImplOptions.AggressiveInlining)]
+        public void MoveBitsDown(byte[] bits)
+        {
+            var bit = 0;
+
+            for (var i = bits.Length - 1; i >= 0; i--)
+            {
+                var low = bits[i] & 1;
+
+                bits[i] = (byte)((bit << 7) | (bits[i] >> 1));
+
+                bit = low;
+            }
+        }
+
+        [MethodImpl(MethodImplOptions.AggressiveInlining)]
+        public void MoveBitsDown(byte[] bits, int bitCount)
+        {
+            for (var i = 0; i < bitCount; i++)
+            {
+                MoveBitsDown(bits);
+            }
+        }
+
+        [MethodImpl(MethodImplOptions.AggressiveInlining)]
+        public unsafe void MoveBitsDown(byte* bits, int count)
+        {
+            var bit = 0;
+
+            for (var i = count - 1; i >= 0; i--)
+            {
+                var low = bits[i] & 1;
+
+                bits[i] = (byte)((bit << 7) | (bits[i] >> 1));
+
+                bit = low;
+            }
+        }
+
+        [MethodImpl(MethodImplOptions.AggressiveInlining)]
+        public unsafe void MoveBitsDown(byte* bits, int count, int bitCount)
+        {
+            for (var i = 0; i < bitCount; i++)
+            {
+                MoveBitsDown(bits, count);
+            }
         }
 
         [MethodImpl(MethodImplOptions.AggressiveInlining)]
@@ -157,43 +226,22 @@ namespace Vicuna.Engine.Locking
         }
 
         [MethodImpl(MethodImplOptions.AggressiveInlining)]
-        public void CopyBitsTo(int index, byte[] bits)
+        public unsafe void CopyBitsTo(int index, byte* buffer)
         {
-            var mid = index / 8;
+            var mid = index >> 3;
+            var count = (uint)(Bits.Length - mid);
+            var bits = Bits;
 
-            Array.Copy(Bits, mid, bits, 0, Bits.Length - mid);
+            Unsafe.CopyBlockUnaligned(ref *buffer, ref bits[mid], count);
 
-            bits[0] = (byte)(bits[0] & (byte.MaxValue << (index % 8)));
-            Bits[mid] = (byte)(Bits[mid] & (byte.MaxValue >> (8 - index % 8)));
+            bits[mid] = (byte)(bits[mid] & (byte.MaxValue >> (8 - index % 8)));
+            buffer[0] = (byte)(buffer[0] & (byte.MaxValue << (index % 8)));
+
+            MoveBitsDown(buffer, (int)count, index % 8);
         }
 
         [MethodImpl(MethodImplOptions.AggressiveInlining)]
-        public unsafe void CopyBitsTo(int index, byte* bits)
-        {
-            var mid = index / 8;
-
-            Unsafe.CopyBlockUnaligned(ref *bits, ref Bits[mid], (uint)(Bits.Length - mid));
-
-            bits[0] = (byte)(bits[0] & (byte.MaxValue << (index % 8)));
-            Bits[mid] = (byte)(Bits[mid] & (byte.MaxValue >> (8 - index % 8)));
-        }
-
-        [MethodImpl(MethodImplOptions.AggressiveInlining)]
-        public void ExtendCapacity(int cap, LockExtendDirection direction)
-        {
-            switch (direction)
-            {
-                case LockExtendDirection.Head:
-                    ExtendHeadCapacity(cap);
-                    break;
-                default:
-                    ExtendTailCapacity(cap);
-                    break;
-            }
-        }
-
-        [MethodImpl(MethodImplOptions.AggressiveInlining)]
-        internal void ExtendTailCapacity(int cap)
+        internal void ExtendCapacity(int cap)
         {
             var len = cap % 8 == 0 ? cap >> 3 : (cap >> 3) + 1;
             var bits = new byte[Bits.Length + len];
@@ -201,33 +249,6 @@ namespace Vicuna.Engine.Locking
             Array.Copy(Bits, bits, Bits.Length);
 
             Bits = bits;
-        }
-
-        [MethodImpl(MethodImplOptions.AggressiveInlining)]
-        internal void ExtendHeadCapacity(int cap)
-        {
-            var mod = cap % 8;
-            var len = mod == 0 ? cap >> 3 : (cap >> 3) + 1;
-            var bits = new byte[Bits.Length + len];
-
-            if (mod == 0)
-            {
-                Array.Copy(Bits, 0, bits, len, Bits.Length);
-                Bits = bits;
-                return;
-            }
-
-            if (len > 1)
-            {
-                Array.Copy(Bits, 0, bits, len - 1, Bits.Length);
-            }
-
-            Bits = bits;
-
-            for (var i = 0; i < mod; i++)
-            {
-                MoveBits((len - 1) << 3);
-            }
         }
 
         public override string ToString()
@@ -251,12 +272,5 @@ namespace Vicuna.Engine.Locking
 
             return builder.ToString();
         }
-    }
-
-    public enum LockExtendDirection
-    {
-        Head,
-
-        Tail
     }
 }

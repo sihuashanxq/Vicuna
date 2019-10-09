@@ -76,7 +76,7 @@ namespace Vicuna.Engine.Data.Trees
 
         public bool TryGetEntry(LowLevelTransaction lltx, Span<byte> key, out long n)
         {
-            var page = GetPageForQuery(lltx, key, Constants.BTreeLeafPageDepth);
+            var page = GetPageForQuery(lltx, key);
             if (page == null)
             {
                 n = 0;

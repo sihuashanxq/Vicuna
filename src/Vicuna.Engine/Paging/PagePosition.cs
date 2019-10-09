@@ -35,11 +35,6 @@ namespace Vicuna.Engine.Paging
 
         public override bool Equals(object obj)
         {
-            if (obj is null)
-            {
-                return false;
-            }
-
             if (obj is PagePosition pos)
             {
                 return FileId == pos.FileId && PageNumber == pos.PageNumber;
